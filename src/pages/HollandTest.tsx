@@ -41,12 +41,10 @@ const HollandTest = () => {
   const [selectedBlock, setSelectedBlock] = useState<string>('');
   const [selectedMajor, setSelectedMajor] = useState<Major | null>(null);
   const [testAnswers, setTestAnswers] = useState<TestAnswers>({});
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  
   const [testResult, setTestResult] = useState<TestResult | null>(null);
 
   const selectedBlockData = testBlocks.find(block => block.id === selectedBlock);
-  const currentQuestion = hollandQuestions[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / hollandQuestions.length) * 100;
 
   const handlePersonalInfoNext = () => {
     if (!personalInfo.name.trim() || !personalInfo.class.trim()) {
@@ -78,19 +76,6 @@ const HollandTest = () => {
     }));
   };
 
-  const handleNextQuestion = () => {
-    if (currentQuestionIndex < hollandQuestions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-    } else {
-      calculateResults();
-    }
-  };
-
-  const handlePrevQuestion = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1);
-    }
-  };
 
   const calculateResults = () => {
     const scores: HollandScores = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
@@ -135,7 +120,7 @@ const HollandTest = () => {
     setSelectedBlock('');
     setSelectedMajor(null);
     setTestAnswers({});
-    setCurrentQuestionIndex(0);
+    
     setTestResult(null);
   };
 
@@ -202,10 +187,7 @@ const HollandTest = () => {
             >
               <CardContent className="p-6 text-center">
                 <div className="text-2xl font-bold text-primary mb-2">{block.id}</div>
-                <div className="text-sm text-muted-foreground mb-3">{block.name}</div>
-                <Badge variant="secondary" className="text-xs">
-                  {block.majors.length} ngành
-                </Badge>
+                <div className="text-sm text-muted-foreground">{block.name}</div>
               </CardContent>
             </Card>
           ))}
@@ -234,17 +216,6 @@ const HollandTest = () => {
               <CardContent className="p-6">
                 <h3 className="font-bold text-lg mb-2 text-primary">{major.name}</h3>
                 <p className="text-sm text-muted-foreground mb-4">{major.description}</p>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {major.hollandTypes.map(type => (
-                    <Badge 
-                      key={type} 
-                      variant="outline"
-                      className={`text-xs border-education-${hollandTypeDescriptions[type as keyof typeof hollandTypeDescriptions]?.color}`}
-                    >
-                      {type}
-                    </Badge>
-                  ))}
-                </div>
                 <div className="text-xs text-muted-foreground">
                   Môn: {major.subjects.join(', ')}
                 </div>
@@ -265,77 +236,65 @@ const HollandTest = () => {
     </Card>
   );
 
-  const renderTestStep = () => (
-    <Card className="w-full max-w-3xl mx-auto shadow-medium">
-      <CardHeader className="bg-gradient-warm text-white rounded-t-lg">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-xl font-bold">Bài Test Holland</CardTitle>
-          <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
-            {currentQuestionIndex + 1}/{hollandQuestions.length}
-          </Badge>
-        </div>
-        <div className="space-y-2">
-          <Progress value={progress} className="h-2 bg-white/20" />
-          <p className="text-white/90 text-sm">
+  const renderTestStep = () => {
+    const groupedQuestions = hollandQuestions.reduce((groups, question) => {
+      if (!groups[question.type]) {
+        groups[question.type] = [];
+      }
+      groups[question.type].push(question);
+      return groups;
+    }, {} as Record<string, typeof hollandQuestions>);
+
+    return (
+      <Card className="w-full max-w-4xl mx-auto shadow-medium">
+        <CardHeader className="bg-gradient-warm text-white rounded-t-lg">
+          <CardTitle className="text-xl font-bold text-center">Bài Test Holland</CardTitle>
+          <p className="text-white/90 text-sm text-center">
             Ngành đã chọn: <span className="font-semibold">{selectedMajor?.name}</span>
           </p>
-        </div>
-      </CardHeader>
-      <CardContent className="p-8">
-        <div className="space-y-6">
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-primary text-white text-2xl font-bold mb-4">
-              {hollandTypeDescriptions[currentQuestion.type].name.charAt(0)}
-            </div>
-            <h3 className="text-lg font-semibold mb-2">
-              {hollandTypeDescriptions[currentQuestion.type].name}
-            </h3>
-            <p className="text-muted-foreground text-sm mb-6">
-              {hollandTypeDescriptions[currentQuestion.type].description}
-            </p>
-          </div>
-          
-          <Card className="border-2 border-muted bg-muted/50">
-            <CardContent className="p-6">
-              <div className="flex items-start space-x-4">
-                <Checkbox
-                  id={`question-${currentQuestion.id}`}
-                  checked={testAnswers[currentQuestion.id] || false}
-                  onCheckedChange={(checked) => 
-                    handleAnswerChange(currentQuestion.id, checked as boolean)
-                  }
-                  className="mt-1"
-                />
-                <Label 
-                  htmlFor={`question-${currentQuestion.id}`}
-                  className="text-base leading-relaxed cursor-pointer"
-                >
-                  {currentQuestion.text}
-                </Label>
+        </CardHeader>
+        <CardContent className="p-8">
+          <div className="space-y-8">
+            {Object.entries(groupedQuestions).map(([type, questions]) => (
+              <div key={type} className="space-y-4">
+                {questions.map((question) => (
+                  <Card key={question.id} className="border border-muted bg-muted/50">
+                    <CardContent className="p-4">
+                      <div className="flex items-start space-x-4">
+                        <Checkbox
+                          id={`question-${question.id}`}
+                          checked={testAnswers[question.id] || false}
+                          onCheckedChange={(checked) => 
+                            handleAnswerChange(question.id, checked as boolean)
+                          }
+                          className="mt-1"
+                        />
+                        <Label 
+                          htmlFor={`question-${question.id}`}
+                          className="text-base leading-relaxed cursor-pointer"
+                        >
+                          {question.text}
+                        </Label>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={handlePrevQuestion}
-              disabled={currentQuestionIndex === 0}
-              className="flex-1 mr-3"
-            >
-              Câu trước
-            </Button>
-            <Button
-              onClick={handleNextQuestion}
-              className="flex-1 ml-3 bg-gradient-primary hover:shadow-glow"
-            >
-              {currentQuestionIndex === hollandQuestions.length - 1 ? 'Hoàn thành' : 'Câu tiếp theo'}
-            </Button>
+            ))}
+            
+            <div className="flex justify-center pt-6">
+              <Button
+                onClick={calculateResults}
+                className="px-8 py-3 bg-gradient-primary hover:shadow-glow"
+              >
+                Hoàn thành bài test
+              </Button>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
   const renderResultStep = () => (
     <div className="w-full max-w-4xl mx-auto space-y-6">
