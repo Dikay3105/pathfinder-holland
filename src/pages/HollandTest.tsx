@@ -236,60 +236,94 @@ const HollandTest = () => {
     </Card>
   );
 
-  const renderTestStep = () => {
-    const groupedQuestions = hollandQuestions.reduce((groups, question) => {
-      if (!groups[question.type]) {
-        groups[question.type] = [];
-      }
-      groups[question.type].push(question);
-      return groups;
-    }, {} as Record<string, typeof hollandQuestions>);
+  const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
 
+  const groupedQuestions = hollandQuestions.reduce((groups, question) => {
+    if (!groups[question.type]) {
+      groups[question.type] = [];
+    }
+    groups[question.type].push(question);
+    return groups;
+  }, {} as Record<string, typeof hollandQuestions>);
+
+  const groupTypes = Object.keys(groupedQuestions);
+  const currentGroup = groupTypes[currentGroupIndex];
+  const currentQuestions = groupedQuestions[currentGroup] || [];
+
+  const handleNextGroup = () => {
+    if (currentGroupIndex < groupTypes.length - 1) {
+      setCurrentGroupIndex(prev => prev + 1);
+    } else {
+      calculateResults();
+    }
+  };
+
+  const handlePrevGroup = () => {
+    if (currentGroupIndex > 0) {
+      setCurrentGroupIndex(prev => prev - 1);
+    }
+  };
+
+  const renderTestStep = () => {
     return (
-      <Card className="w-full max-w-4xl mx-auto shadow-medium">
-        <CardHeader className="bg-gradient-warm text-white rounded-t-lg">
-          <CardTitle className="text-xl font-bold text-center">Bài Test Holland</CardTitle>
+      <Card className="w-full max-w-2xl mx-auto shadow-medium">
+        <CardHeader className="bg-gradient-warm text-white rounded-t-lg relative">
+          <div className="absolute top-4 right-6 text-white/80 font-medium">
+            {currentGroupIndex + 1} / {groupTypes.length}
+          </div>
+          <CardTitle className="text-2xl font-bold text-center pt-2">Tôi thích...</CardTitle>
           <p className="text-white/90 text-sm text-center">
-            Ngành đã chọn: <span className="font-semibold">{selectedMajor?.name}</span>
+            (Chọn 1 - 2 đáp án đúng với bạn nhất)
           </p>
         </CardHeader>
         <CardContent className="p-8">
-          <div className="space-y-8">
-            {Object.entries(groupedQuestions).map(([type, questions]) => (
-              <div key={type} className="space-y-4">
-                {questions.map((question) => (
-                  <Card key={question.id} className="border border-muted bg-muted/50">
-                    <CardContent className="p-4">
-                      <div className="flex items-start space-x-4">
-                        <Checkbox
-                          id={`question-${question.id}`}
-                          checked={testAnswers[question.id] || false}
-                          onCheckedChange={(checked) => 
-                            handleAnswerChange(question.id, checked as boolean)
-                          }
-                          className="mt-1"
-                        />
-                        <Label 
-                          htmlFor={`question-${question.id}`}
-                          className="text-base leading-relaxed cursor-pointer"
-                        >
-                          {question.text}
-                        </Label>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+          <div className="space-y-4">
+            {currentQuestions.map((question) => (
+              <div 
+                key={question.id} 
+                className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 ${
+                  testAnswers[question.id] 
+                    ? 'bg-education-green text-white border-education-green' 
+                    : 'border-muted bg-background hover:bg-muted/50'
+                }`}
+                onClick={() => handleAnswerChange(question.id, !testAnswers[question.id])}
+              >
+                <div className="flex items-center space-x-4">
+                  <Checkbox
+                    id={`question-${question.id}`}
+                    checked={testAnswers[question.id] || false}
+                    onCheckedChange={(checked) => 
+                      handleAnswerChange(question.id, checked as boolean)
+                    }
+                    className="pointer-events-none"
+                  />
+                  <Label 
+                    htmlFor={`question-${question.id}`}
+                    className="text-base leading-relaxed cursor-pointer flex-1"
+                  >
+                    {question.text}
+                  </Label>
+                </div>
               </div>
             ))}
+          </div>
+          
+          <div className="flex justify-between items-center pt-8">
+            <Button
+              variant="outline"
+              onClick={handlePrevGroup}
+              disabled={currentGroupIndex === 0}
+              className="px-6"
+            >
+              Quay lại
+            </Button>
             
-            <div className="flex justify-center pt-6">
-              <Button
-                onClick={calculateResults}
-                className="px-8 py-3 bg-gradient-primary hover:shadow-glow"
-              >
-                Hoàn thành bài test
-              </Button>
-            </div>
+            <Button
+              onClick={handleNextGroup}
+              className="px-8 py-3 bg-education-green hover:bg-education-green/90 text-white"
+            >
+              {currentGroupIndex === groupTypes.length - 1 ? 'Hoàn thành' : 'Next'}
+            </Button>
           </div>
         </CardContent>
       </Card>
