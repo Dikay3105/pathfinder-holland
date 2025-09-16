@@ -238,6 +238,7 @@ const HollandTest = () => {
 
   const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
 
+  // Group questions by Holland type
   const groupedQuestions = hollandQuestions.reduce((groups, question) => {
     if (!groups[question.type]) {
       groups[question.type] = [];
@@ -265,15 +266,22 @@ const HollandTest = () => {
   };
 
   const renderTestStep = () => {
+    const groupInfo = hollandTypeDescriptions[currentGroup as keyof HollandScores];
+    
     return (
       <Card className="w-full max-w-2xl mx-auto shadow-medium">
         <CardHeader className="bg-gradient-warm text-white rounded-t-lg relative">
           <div className="absolute top-4 right-6 text-white/80 font-medium">
             {currentGroupIndex + 1} / {groupTypes.length}
           </div>
-          <CardTitle className="text-2xl font-bold text-center pt-2">Tôi thích...</CardTitle>
-          <p className="text-white/90 text-sm text-center">
-            (Chọn 1 - 2 đáp án đúng với bạn nhất)
+          <CardTitle className="text-2xl font-bold text-center pt-2">
+            Đánh giá nhóm kỹ năng: {groupInfo?.name}
+          </CardTitle>
+          <p className="text-white/90 text-sm text-center mt-2">
+            {groupInfo?.description}
+          </p>
+          <p className="text-white/80 text-xs text-center mt-2">
+            (Chọn những hoạt động bạn thích)
           </p>
         </CardHeader>
         <CardContent className="p-8">
@@ -322,7 +330,7 @@ const HollandTest = () => {
               onClick={handleNextGroup}
               className="px-8 py-3 bg-education-green hover:bg-education-green/90 text-white"
             >
-              {currentGroupIndex === groupTypes.length - 1 ? 'Hoàn thành' : 'Next'}
+              {currentGroupIndex === groupTypes.length - 1 ? 'Hoàn thành' : 'Tiếp theo'}
             </Button>
           </div>
         </CardContent>
