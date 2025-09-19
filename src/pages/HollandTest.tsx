@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { testBlocks, hollandQuestions, hollandTypeDescriptions, Major, majorsData } from '@/data/testData';
 import { BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight, Target } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import schoolBackground from '@/assets/school-background.jpg';
+import schoolLogo from '@/assets/school-logo.png';
 
 interface PersonalInfo {
   name: string;
@@ -556,8 +558,35 @@ const HollandTest = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background py-8 px-4">
-      <div className="container mx-auto">
+    <div 
+      className="min-h-screen py-8 px-4 relative"
+      style={{
+        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url(${schoolBackground})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      {/* School Header */}
+      <div className="container mx-auto mb-8">
+        <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4">
+            <img 
+              src={schoolLogo} 
+              alt="Logo trường THPT Nguyễn Hiền" 
+              className="w-20 h-20 md:w-24 md:h-24 object-contain"
+            />
+            <div className="text-center md:text-left">
+              <h1 className="text-2xl md:text-3xl font-bold text-primary mb-2">
+                TRƯỜNG TRUNG HỌC PHỔ THÔNG NGUYỄN HIỀN
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Sở Giáo dục và Đào tạo TP. Hồ Chí Minh
+              </p>
+            </div>
+          </div>
+        </div>
+        
         {step === 1 && renderPersonalInfoStep()}
         {step === 2 && renderTestStep()}
         {step === 3 && renderBlockSelectionStep()}
