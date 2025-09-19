@@ -3,12 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { testBlocks, hollandQuestions, hollandTypeDescriptions, Major } from '@/data/testData';
-import { BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight } from 'lucide-react';
+import { testBlocks, hollandQuestions, hollandTypeDescriptions, Major, majorsData } from '@/data/testData';
+import { BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight, Target } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface PersonalInfo {
@@ -29,22 +27,26 @@ interface TestAnswers {
   [questionId: number]: boolean;
 }
 
+interface ScoreInput {
+  subject: string;
+  currentScore: number;
+  targetScore: number;
+}
+
 interface TestResult {
   topThreeTypes: Array<{ type: keyof HollandScores; score: number }>;
-  isCompatible: boolean;
-  recommendedSubjects: string[];
+  compatibleMajors: Major[];
+  selectedBlocks: string[];
+  scores: ScoreInput[];
 }
 
 const HollandTest = () => {
   const [step, setStep] = useState(1);
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ name: '', class: '' });
-  const [selectedBlock, setSelectedBlock] = useState<string>('');
-  const [selectedMajor, setSelectedMajor] = useState<Major | null>(null);
   const [testAnswers, setTestAnswers] = useState<TestAnswers>({});
-  
+  const [selectedBlocks, setSelectedBlocks] = useState<string[]>([]);
+  const [scores, setScores] = useState<ScoreInput[]>([]);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
-
-  const selectedBlockData = testBlocks.find(block => block.id === selectedBlock);
 
   const handlePersonalInfoNext = () => {
     if (!personalInfo.name.trim() || !personalInfo.class.trim()) {
@@ -58,17 +60,6 @@ const HollandTest = () => {
     setStep(2);
   };
 
-  const handleBlockSelection = (blockId: string) => {
-    setSelectedBlock(blockId);
-    setSelectedMajor(null);
-    setStep(3);
-  };
-
-  const handleMajorSelection = (major: Major) => {
-    setSelectedMajor(major);
-    setStep(4);
-  };
-
   const handleAnswerChange = (questionId: number, checked: boolean) => {
     setTestAnswers(prev => ({
       ...prev,
@@ -76,33 +67,81 @@ const HollandTest = () => {
     }));
   };
 
+  const handleBlockToggle = (blockId: string) => {
+    setSelectedBlocks(prev => 
+      prev.includes(blockId) 
+        ? prev.filter(id => id !== blockId)
+        : [...prev, blockId]
+    );
+  };
+
+  const handleBlockSelectionNext = () => {
+    if (selectedBlocks.length === 0) {
+      toast({
+        title: "Chưa chọn khối thi",
+        description: "Vui lòng chọn ít nhất một khối thi.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Get all subjects from selected blocks
+    const allSubjects = new Set<string>();
+    selectedBlocks.forEach(blockId => {
+      const block = testBlocks.find(b => b.id === blockId);
+      if (block) {
+        const subjects = block.name.match(/\(([^)]+)\)/)?.[1].split(', ') || [];
+        subjects.forEach(subject => allSubjects.add(subject));
+      }
+    });
+
+    const initialScores = Array.from(allSubjects).map(subject => ({
+      subject,
+      currentScore: 0,
+      targetScore: 0
+    }));
+    
+    setScores(initialScores);
+    setStep(4);
+  };
+
+  const handleScoreChange = (index: number, field: 'currentScore' | 'targetScore', value: number) => {
+    setScores(prev => prev.map((score, i) => 
+      i === index ? { ...score, [field]: value } : score
+    ));
+  };
 
   const calculateResults = () => {
-    const scores: HollandScores = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
+    const hollandScores: HollandScores = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
     
     Object.entries(testAnswers).forEach(([questionId, isAnswered]) => {
       if (isAnswered) {
         const question = hollandQuestions.find(q => q.id === parseInt(questionId));
         if (question) {
-          scores[question.type]++;
+          hollandScores[question.type]++;
         }
       }
     });
 
-    const sortedTypes = Object.entries(scores)
+    const sortedTypes = Object.entries(hollandScores)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 3)
       .map(([type, score]) => ({ type: type as keyof HollandScores, score }));
 
     const userHollandTypes = sortedTypes.map(item => item.type);
-    const majorHollandTypes = selectedMajor?.hollandTypes || [];
     
-    const isCompatible = userHollandTypes.some(type => majorHollandTypes.includes(type));
-    
+    // Find compatible majors in selected blocks
+    const compatibleMajors = majorsData.filter(major => {
+      const hasMatchingBlock = major.examBlocks.some(block => selectedBlocks.includes(block));
+      const hasMatchingHollandType = major.hollandTypes.some(type => userHollandTypes.includes(type as keyof HollandScores));
+      return hasMatchingBlock && hasMatchingHollandType;
+    });
+
     const result: TestResult = {
       topThreeTypes: sortedTypes,
-      isCompatible,
-      recommendedSubjects: selectedMajor?.subjects || []
+      compatibleMajors,
+      selectedBlocks,
+      scores
     };
 
     setTestResult(result);
@@ -117,11 +156,38 @@ const HollandTest = () => {
   const resetTest = () => {
     setStep(1);
     setPersonalInfo({ name: '', class: '' });
-    setSelectedBlock('');
-    setSelectedMajor(null);
     setTestAnswers({});
-    
+    setSelectedBlocks([]);
+    setScores([]);
     setTestResult(null);
+  };
+
+  // Group questions by Holland type for the test step
+  const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
+  const groupedQuestions = hollandQuestions.reduce((groups, question) => {
+    if (!groups[question.type]) {
+      groups[question.type] = [];
+    }
+    groups[question.type].push(question);
+    return groups;
+  }, {} as Record<string, typeof hollandQuestions>);
+
+  const groupTypes = Object.keys(groupedQuestions);
+  const currentGroup = groupTypes[currentGroupIndex];
+  const currentQuestions = groupedQuestions[currentGroup] || [];
+
+  const handleNextGroup = () => {
+    if (currentGroupIndex < groupTypes.length - 1) {
+      setCurrentGroupIndex(prev => prev + 1);
+    } else {
+      setStep(3);
+    }
+  };
+
+  const handlePrevGroup = () => {
+    if (currentGroupIndex > 0) {
+      setCurrentGroupIndex(prev => prev - 1);
+    }
   };
 
   const renderPersonalInfoStep = () => (
@@ -167,103 +233,6 @@ const HollandTest = () => {
       </CardContent>
     </Card>
   );
-
-  const renderBlockSelectionStep = () => (
-    <Card className="w-full max-w-4xl mx-auto shadow-medium">
-      <CardHeader className="text-center bg-gradient-secondary text-white rounded-t-lg">
-        <CardTitle className="text-2xl font-bold flex items-center justify-center gap-3">
-          <BookOpen className="w-6 h-6" />
-          Chọn khối thi đại học
-        </CardTitle>
-        <p className="text-white/90">Chọn khối thi mà bạn dự định tham gia</p>
-      </CardHeader>
-      <CardContent className="p-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {testBlocks.map(block => (
-            <Card 
-              key={block.id}
-              className="cursor-pointer hover:shadow-medium transition-all duration-300 hover:scale-105 border-2 hover:border-primary"
-              onClick={() => handleBlockSelection(block.id)}
-            >
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-primary mb-2">{block.id}</div>
-                <div className="text-sm text-muted-foreground">{block.name}</div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  const renderMajorSelectionStep = () => (
-    <Card className="w-full max-w-6xl mx-auto shadow-medium">
-      <CardHeader className="text-center bg-gradient-success text-white rounded-t-lg">
-        <CardTitle className="text-2xl font-bold flex items-center justify-center gap-3">
-          <Sparkles className="w-6 h-6" />
-          Chọn ngành học - {selectedBlockData?.name}
-        </CardTitle>
-        <p className="text-white/90">Chọn ngành học mà bạn quan tâm trong khối thi này</p>
-      </CardHeader>
-      <CardContent className="p-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {selectedBlockData?.majors.map(major => (
-            <Card 
-              key={major.id}
-              className="cursor-pointer hover:shadow-medium transition-all duration-300 hover:scale-[1.02] border hover:border-primary"
-              onClick={() => handleMajorSelection(major)}
-            >
-              <CardContent className="p-6">
-                <h3 className="font-bold text-lg mb-2 text-primary">{major.name}</h3>
-                <p className="text-sm text-muted-foreground mb-4">{major.description}</p>
-                <div className="text-xs text-muted-foreground">
-                  Môn: {major.subjects.join(', ')}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <div className="mt-6 text-center">
-          <Button 
-            variant="outline" 
-            onClick={() => setStep(2)}
-            className="hover:bg-muted"
-          >
-            Quay lại chọn khối thi
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
-
-  // Group questions by Holland type
-  const groupedQuestions = hollandQuestions.reduce((groups, question) => {
-    if (!groups[question.type]) {
-      groups[question.type] = [];
-    }
-    groups[question.type].push(question);
-    return groups;
-  }, {} as Record<string, typeof hollandQuestions>);
-
-  const groupTypes = Object.keys(groupedQuestions);
-  const currentGroup = groupTypes[currentGroupIndex];
-  const currentQuestions = groupedQuestions[currentGroup] || [];
-
-  const handleNextGroup = () => {
-    if (currentGroupIndex < groupTypes.length - 1) {
-      setCurrentGroupIndex(prev => prev + 1);
-    } else {
-      calculateResults();
-    }
-  };
-
-  const handlePrevGroup = () => {
-    if (currentGroupIndex > 0) {
-      setCurrentGroupIndex(prev => prev - 1);
-    }
-  };
 
   const renderTestStep = () => {
     const groupInfo = hollandTypeDescriptions[currentGroup as keyof HollandScores];
@@ -330,7 +299,7 @@ const HollandTest = () => {
               onClick={handleNextGroup}
               className="px-8 py-3 bg-education-green hover:bg-education-green/90 text-white"
             >
-              {currentGroupIndex === groupTypes.length - 1 ? 'Hoàn thành' : 'Tiếp theo'}
+              {currentGroupIndex === groupTypes.length - 1 ? 'Tiếp theo' : 'Tiếp theo'}
             </Button>
           </div>
         </CardContent>
@@ -338,8 +307,139 @@ const HollandTest = () => {
     );
   };
 
+  const renderBlockSelectionStep = () => (
+    <Card className="w-full max-w-4xl mx-auto shadow-medium">
+      <CardHeader className="text-center bg-gradient-secondary text-white rounded-t-lg">
+        <CardTitle className="text-2xl font-bold flex items-center justify-center gap-3">
+          <BookOpen className="w-6 h-6" />
+          Chọn các khối thi đại học
+        </CardTitle>
+        <p className="text-white/90">Chọn các khối thi mà bạn dự định tham gia (có thể chọn nhiều)</p>
+      </CardHeader>
+      <CardContent className="p-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {testBlocks.map(block => (
+            <Card 
+              key={block.id}
+              className={`cursor-pointer transition-all duration-300 hover:scale-105 border-2 ${
+                selectedBlocks.includes(block.id) 
+                  ? 'border-primary bg-primary/10' 
+                  : 'border-muted hover:border-primary'
+              }`}
+              onClick={() => handleBlockToggle(block.id)}
+            >
+              <CardContent className="p-6 text-center">
+                <div className="flex items-center justify-center mb-2">
+                  <Checkbox 
+                    checked={selectedBlocks.includes(block.id)}
+                    className="mr-3"
+                  />
+                  <div className="text-2xl font-bold text-primary">{block.id}</div>
+                </div>
+                <div className="text-sm text-muted-foreground">{block.name}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        
+        <div className="mt-8 flex justify-between items-center">
+          <Button 
+            variant="outline" 
+            onClick={() => setStep(2)}
+            className="hover:bg-muted"
+          >
+            Quay lại làm test
+          </Button>
+          
+          <div className="text-center">
+            {selectedBlocks.length > 0 && (
+              <p className="text-sm text-muted-foreground mb-2">
+                Đã chọn {selectedBlocks.length} khối thi
+              </p>
+            )}
+            <Button 
+              onClick={handleBlockSelectionNext}
+              disabled={selectedBlocks.length === 0}
+              className="bg-gradient-primary hover:shadow-glow px-8 py-3"
+            >
+              Tiếp tục <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderScoreInputStep = () => (
+    <Card className="w-full max-w-4xl mx-auto shadow-medium">
+      <CardHeader className="text-center bg-gradient-success text-white rounded-t-lg">
+        <CardTitle className="text-2xl font-bold flex items-center justify-center gap-3">
+          <Target className="w-6 h-6" />
+          Điền điểm số của bạn
+        </CardTitle>
+        <p className="text-white/90">
+          Điền điểm hiện tại và điểm mong muốn cho các môn trong khối thi đã chọn
+        </p>
+      </CardHeader>
+      <CardContent className="p-8">
+        <div className="space-y-6">
+          {scores.map((score, index) => (
+            <div key={score.subject} className="bg-muted rounded-lg p-6">
+              <h3 className="font-bold text-lg mb-4 text-center">{score.subject}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-base font-medium">Điểm hiện tại</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="10"
+                    step="0.1"
+                    value={score.currentScore || ''}
+                    onChange={(e) => handleScoreChange(index, 'currentScore', parseFloat(e.target.value) || 0)}
+                    placeholder="0.0"
+                    className="h-12 text-base text-center"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-base font-medium">Điểm mong muốn</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="10"
+                    step="0.1"
+                    value={score.targetScore || ''}
+                    onChange={(e) => handleScoreChange(index, 'targetScore', parseFloat(e.target.value) || 0)}
+                    placeholder="0.0"
+                    className="h-12 text-base text-center"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        <div className="mt-8 flex justify-between items-center">
+          <Button 
+            variant="outline" 
+            onClick={() => setStep(3)}
+            className="hover:bg-muted"
+          >
+            Quay lại chọn khối
+          </Button>
+          
+          <Button 
+            onClick={calculateResults}
+            className="bg-gradient-primary hover:shadow-glow px-8 py-3"
+          >
+            Hoàn thành <CheckCircle className="w-5 h-5 ml-2" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   const renderResultStep = () => (
-    <div className="w-full max-w-4xl mx-auto space-y-6">
+    <div className="w-full max-w-6xl mx-auto space-y-6">
       <Card className="shadow-medium">
         <CardHeader className="text-center bg-gradient-success text-white rounded-t-lg">
           <CardTitle className="text-3xl font-bold flex items-center justify-center gap-3">
@@ -378,31 +478,64 @@ const HollandTest = () => {
             </div>
 
             <div>
-              <h3 className="text-xl font-bold mb-4">Đánh giá độ phù hợp</h3>
-              <Card className={`border-2 ${testResult?.isCompatible ? 'border-education-green bg-education-green/5' : 'border-education-orange bg-education-orange/5'}`}>
-                <CardContent className="p-6">
-                  <div className="text-center">
-                    <div className={`text-4xl mb-3 ${testResult?.isCompatible ? 'text-education-green' : 'text-education-orange'}`}>
-                      {testResult?.isCompatible ? '🎉' : '🤔'}
+              <h3 className="text-xl font-bold mb-4">Ngành học phù hợp</h3>
+              <div className="space-y-3">
+                {testResult?.compatibleMajors.length ? (
+                  testResult.compatibleMajors.slice(0, 5).map(major => (
+                    <div key={major.id} className="p-4 bg-education-green/10 border border-education-green/20 rounded-lg">
+                      <h4 className="font-bold text-education-green">{major.name}</h4>
+                      <p className="text-sm text-muted-foreground mt-1">{major.description}</p>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {major.examBlocks.filter(block => testResult.selectedBlocks.includes(block)).map(block => (
+                          <Badge key={block} variant="secondary" className="text-xs">
+                            {block}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                    <h4 className="font-bold text-lg mb-3">
-                      Ngành: {selectedMajor?.name}
-                    </h4>
-                    <p className={`text-sm mb-4 ${testResult?.isCompatible ? 'text-education-green' : 'text-education-orange'}`}>
-                      {testResult?.isCompatible 
-                        ? "🎉 Chúc mừng bạn! Kết quả cho thấy ngành này khá phù hợp với năng lực và sở thích của bạn. Tuy nhiên, để biến cơ hội thành hiện thực, hãy tiếp tục tập trung rèn luyện các môn thi đại học – chìa khóa giúp bạn tiến gần hơn đến mục tiêu."
-                        : "🤔 Có vẻ ngành bạn chọn chưa thật sự 'ăn khớp' với sở thích và năng lực hiện tại. Bạn có thể trao đổi thêm với thầy cô hướng nghiệp để có góc nhìn rõ hơn. Nhưng quan trọng nhất, hãy tập trung phát huy 2 môn học thế mạnh – đó sẽ là bước đệm chắc chắn để bạn đạt được nguyện vọng."
-                      }
+                  ))
+                ) : (
+                  <div className="p-4 bg-education-orange/10 border border-education-orange/20 rounded-lg">
+                    <p className="text-education-orange">
+                      Không tìm thấy ngành học phù hợp hoàn toàn với kết quả Holland và khối thi đã chọn. 
+                      Hãy tham khảo thêm ý kiến từ thầy cô hướng nghiệp.
                     </p>
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium">Khối thi: {selectedMajor?.examBlocks.join(', ')}</div>
-                      <div className="text-sm">Môn trọng tâm: {testResult?.recommendedSubjects.join(', ')}</div>
-                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                )}
+              </div>
             </div>
           </div>
+
+          {testResult?.scores && testResult.scores.length > 0 && (
+            <div className="mt-8">
+              <h3 className="text-xl font-bold mb-4">Lời khuyên về điểm số</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {testResult.scores.map((score, index) => {
+                  const gap = score.targetScore - score.currentScore;
+                  return (
+                    <div key={index} className="p-4 bg-muted rounded-lg">
+                      <h4 className="font-bold text-center mb-2">{score.subject}</h4>
+                      <div className="text-center space-y-1">
+                        <div className="text-sm text-muted-foreground">
+                          Hiện tại: <span className="font-medium">{score.currentScore}</span>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Mục tiêu: <span className="font-medium">{score.targetScore}</span>
+                        </div>
+                        <div className={`text-sm font-medium ${
+                          gap > 0 ? 'text-education-orange' : gap === 0 ? 'text-education-green' : 'text-muted-foreground'
+                        }`}>
+                          {gap > 0 ? `Cần cải thiện: +${gap.toFixed(1)}` : 
+                           gap === 0 ? 'Đã đạt mục tiêu' : 
+                           'Vượt mục tiêu'}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           
           <div className="mt-8 text-center">
             <Button 
@@ -421,9 +554,9 @@ const HollandTest = () => {
     <div className="min-h-screen bg-background py-8 px-4">
       <div className="container mx-auto">
         {step === 1 && renderPersonalInfoStep()}
-        {step === 2 && renderBlockSelectionStep()}
-        {step === 3 && renderMajorSelectionStep()}
-        {step === 4 && renderTestStep()}
+        {step === 2 && renderTestStep()}
+        {step === 3 && renderBlockSelectionStep()}
+        {step === 4 && renderScoreInputStep()}
         {step === 5 && renderResultStep()}
       </div>
     </div>
