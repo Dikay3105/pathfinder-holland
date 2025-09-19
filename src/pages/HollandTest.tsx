@@ -244,13 +244,13 @@ const HollandTest = () => {
             {currentGroupIndex + 1} / {groupTypes.length}
           </div>
           <CardTitle className="text-2xl font-bold text-center pt-2">
-            Đánh giá nhóm kỹ năng: {groupInfo?.name}
+            Nếu có điều kiện, tôi sẽ...
           </CardTitle>
           <p className="text-white/90 text-sm text-center mt-2">
-            {groupInfo?.description}
+            Đánh dấu vào các hoạt động bạn cảm thấy phù hợp
           </p>
           <p className="text-white/80 text-xs text-center mt-2">
-            (Chọn những hoạt động bạn thích)
+            ({groupInfo?.name})
           </p>
         </CardHeader>
         <CardContent className="p-8">
@@ -449,6 +449,11 @@ const HollandTest = () => {
           <p className="text-white/90">
             Chào {personalInfo.name} - Lớp {personalInfo.class}
           </p>
+          <div className="text-white/80 text-center mt-2">
+            Kết quả: Bạn thuộc nhóm <span className="font-bold text-white">
+              {testResult?.topThreeTypes.map(item => item.type).join('')}
+            </span>
+          </div>
         </CardHeader>
         <CardContent className="p-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -470,7 +475,7 @@ const HollandTest = () => {
                       </div>
                     </div>
                     <Badge className={`bg-education-${hollandTypeDescriptions[item.type].color} text-white`}>
-                      {item.score}/4
+                      {item.score}/10
                     </Badge>
                   </div>
                 ))}

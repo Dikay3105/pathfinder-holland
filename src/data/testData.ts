@@ -312,41 +312,77 @@ export interface HollandQuestion {
 }
 
 export const hollandQuestions: HollandQuestion[] = [
-  // Realistic (R) - 4 câu hỏi
-  { id: 1, text: "Tôi thích làm việc với máy móc, dụng cụ.", type: "R" },
-  { id: 2, text: "Tôi thích sửa chữa, lắp ráp.", type: "R" },
-  { id: 3, text: "Tôi thấy thoải mái khi làm việc ngoài trời.", type: "R" },
-  { id: 4, text: "Tôi thích và học tốt các môn Toán, Lý, Anh, Hóa, Tin (hoặc 3/5 môn này)", type: "R" },
+  // Realistic (R) - Nhóm kỹ thuật - 10 câu hỏi
+  { id: 1, text: "Tự mua và lắp ráp máy vi tính theo ý của mình", type: "R" },
+  { id: 2, text: "Lắp ráp tủ theo hướng dẫn của youtube", type: "R" },
+  { id: 3, text: "Trang điểm cho mình hay bạn theo hướng dẫn của youtube", type: "R" },
+  { id: 4, text: "Cắt tỉa cây cảnh", type: "R" },
+  { id: 5, text: "Tháo điện thoại di động hay máy tính để tìm hiểu", type: "R" },
+  { id: 6, text: "Tham gia một chuyến du lịch thám hiểm (như khám phá hang động, núi rừng)", type: "R" },
+  { id: 7, text: "Chăm sóc vật nuôi", type: "R" },
+  { id: 8, text: "Sửa xe", type: "R" },
+  { id: 9, text: "Làm đồ nội thất", type: "R" },
+  { id: 10, text: "Chơi một môn thể thao", type: "R" },
 
-  // Investigative (I) - 4 câu hỏi
-  { id: 5, text: "Tôi thích tìm hiểu, phân tích vấn đề.", type: "I" },
-  { id: 6, text: "Tôi thích làm thí nghiệm khoa học.", type: "I" },
-  { id: 7, text: "Tôi tò mò về cách mọi thứ vận hành.", type: "I" },
-  { id: 8, text: "Tôi yêu thích và học tốt trong Toán, Sinh, Hóa, Lý, Tin (hoặc 3/5 môn này)", type: "I" },
+  // Social (S) - Nhóm xã hội - 10 câu hỏi
+  { id: 11, text: "Kết nối hai người bạn với nhau", type: "S" },
+  { id: 12, text: "Tham gia ngày Trái Đất bằng cách lượm rác hay tắt điện", type: "S" },
+  { id: 13, text: "Hướng dẫn khách nước ngoài chỗ ăn ngon", type: "S" },
+  { id: 14, text: "Cứu động vật bị bỏ rơi ngoài đường", type: "S" },
+  { id: 15, text: "Kể chuyện cười cho bạn bè nghe", type: "S" },
+  { id: 16, text: "Dạy trẻ con chơi một trò chơi hay một môn thể thao", type: "S" },
+  { id: 17, text: "Lắng nghe bạn bè tâm sự về vấn đề của họ", type: "S" },
+  { id: 18, text: "Giúp bạn bè giải quyết vấn đề liên quan tới tình yêu", type: "S" },
+  { id: 19, text: "Tham gia một chuyến đi từ thiện", type: "S" },
+  { id: 20, text: "Sẵn sàng giúp thầy cô, bạn bè khi thấy họ cần", type: "S" },
 
-  // Artistic (A) - 4 câu hỏi
-  { id: 9, text: "Tôi thích vẽ, viết, sáng tác, biểu diễn.", type: "A" },
-  { id: 10, text: "Tôi thích thể hiện bản thân qua nghệ thuật, sáng tạo.", type: "A" },
-  { id: 11, text: "Tôi không thích công việc lặp lại, gò bó.", type: "A" },
-  { id: 12, text: "Tôi yêu thích và học tốt Văn, Toán, Lý, Năng khiếu (vẽ, nhạc,…) (hoặc 3/5 môn này).", type: "A" },
+  // Investigative (I) - Nhóm Nghiên cứu - 10 câu hỏi
+  { id: 21, text: "Thăm bảo tàng công nghệ", type: "I" },
+  { id: 22, text: "Tìm hiểu sự hình thành các vì sao", type: "I" },
+  { id: 23, text: "Tìm hiểu về văn hóa quốc gia mà mình thích", type: "I" },
+  { id: 24, text: "Tìm hiểu về tâm lý con người", type: "I" },
+  { id: 25, text: "Đọc một cuốn sách về tương lai con người trong một triệu năm nữa", type: "I" },
+  { id: 26, text: "Đọc sách báo hay xem youtube video về vũ trụ", type: "I" },
+  { id: 27, text: "Tìm hiểu về nguồn gốc của một dịch bệnh", type: "I" },
+  { id: 28, text: "Đọc các bài báo về ảnh hưởng của AI (trí tuệ nhân tạo) lên nghề nghiệp tương lai", type: "I" },
+  { id: 29, text: "Xem youtube video về thế giới động vật", type: "I" },
+  { id: 30, text: "Tiến hành thí nghiệm hóa học", type: "I" },
 
-  // Social (S) - 4 câu hỏi
-  { id: 13, text: "Tôi thích giúp đỡ, chăm sóc người khác.", type: "S" },
-  { id: 14, text: "Tôi dễ đồng cảm, lắng nghe.", type: "S" },
-  { id: 15, text: "Tôi muốn làm việc trong môi trường hợp tác.", type: "S" },
-  { id: 16, text: "Tôi thích và học tốt Văn, Sử, Địa, Sinh, Ngoại ngữ (hoặc 3/5 môn này).", type: "S" },
+  // Artistic (A) - Nhóm Nghệ thuật - 10 câu hỏi
+  { id: 31, text: "Vẽ tranh", type: "A" },
+  { id: 32, text: "Viết truyện ngắn", type: "A" },
+  { id: 33, text: "Chơi một nhạc cụ", type: "A" },
+  { id: 34, text: "Chỉnh sửa phim", type: "A" },
+  { id: 35, text: "Thiết kế poster cho một sự kiện", type: "A" },
+  { id: 36, text: "Vẽ phim hoạt hình", type: "A" },
+  { id: 37, text: "Hát cho một ban nhạc", type: "A" },
+  { id: 38, text: "Biểu diễn nhảy hiện đại", type: "A" },
+  { id: 39, text: "Dẫn chương trình (MC) cho một sự kiện", type: "A" },
+  { id: 40, text: "Viết kịch bản cho phim hoặc chương trình truyền hình", type: "A" },
 
-  // Enterprising (E) - 4 câu hỏi
-  { id: 17, text: "Tôi thích thuyết phục, lãnh đạo người khác.", type: "E" },
-  { id: 18, text: "Tôi thích kinh doanh, buôn bán, quản lý.", type: "E" },
-  { id: 19, text: "Tôi tự tin trước đám đông.", type: "E" },
-  { id: 20, text: "Tôi thích và học tốt Văn, Anh, Toán, Địa, KT&PL (hoặc 3/5 môn này)", type: "E" },
+  // Enterprising (E) - Nhóm Quản lý - 10 câu hỏi
+  { id: 41, text: "Làm cán bộ lớp", type: "E" },
+  { id: 42, text: "Tham gia một khóa học về quản lý tài chính", type: "E" },
+  { id: 43, text: "Tham dự một trại huấn luyện kỹ năng lãnh đạo dành cho lứa tuổi thanh thiếu niên", type: "E" },
+  { id: 44, text: "Lập kế hoạch làm việc cho thành viên nhóm", type: "E" },
+  { id: 45, text: "Kiếm tiền bằng cách kinh doanh online", type: "E" },
+  { id: 46, text: "Nói trước đám đông về một đề tài bạn thích", type: "E" },
+  { id: 47, text: "Tham gia xây dựng các luật lệ mới cho lớp/trường", type: "E" },
+  { id: 48, text: "Thuyết phục cha mẹ theo ý mình", type: "E" },
+  { id: 49, text: "Tổ chức đi chơi cho một nhóm bạn", type: "E" },
+  { id: 50, text: "Kiếm tiền bằng cách làm thêm", type: "E" },
 
-  // Conventional (C) - 4 câu hỏi
-  { id: 21, text: "Tôi thích công việc rõ ràng, có quy định.", type: "C" },
-  { id: 22, text: "Tôi cẩn thận, tỉ mỉ, thích làm sổ sách.", type: "C" },
-  { id: 23, text: "Tôi có khả năng tính toán, quản lý dữ liệu.", type: "C" },
-  { id: 24, text: "Tôi thích và học tốt Toán, Tin, Văn, KT&PL, Lý (hoặc 3/5 môn này)", type: "C" }
+  // Conventional (C) - Nhóm Nghiệp vụ - 10 câu hỏi
+  { id: 51, text: "Lập kế hoạch chi tiêu hàng tháng", type: "C" },
+  { id: 52, text: "Chuẩn bị ngân sách cho chuyến đi chơi tập thể lớp", type: "C" },
+  { id: 53, text: "Lập kế hoạch cho kỳ nghỉ hè/Tết", type: "C" },
+  { id: 54, text: "Đếm và sắp xếp tiền", type: "C" },
+  { id: 55, text: "Sắp xếp lại bàn học, tủ quần áo, nhà cửa", type: "C" },
+  { id: 56, text: "Viết kế hoạch học tập cho học kỳ mới", type: "C" },
+  { id: 57, text: "Hoàn tất bài tập theo đúng hạn được giao", type: "C" },
+  { id: 58, text: "Dò lỗi chính tả cho phụ đề của một phim yêu thích", type: "C" },
+  { id: 59, text: "Làm thủ quỹ của lớp", type: "C" },
+  { id: 60, text: "Giúp ba mẹ quản lí tiền chợ của gia đình (mua gì, khi nào, mua bao nhiêu)", type: "C" }
 ];
 
 export const hollandTypeDescriptions = {
