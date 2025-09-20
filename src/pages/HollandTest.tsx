@@ -193,7 +193,7 @@ const HollandTest = () => {
   };
 
   const renderPersonalInfoStep = () => (
-    <Card className="w-full max-w-2xl mx-auto shadow-medium">
+    <Card className="w-full mx-auto shadow-medium">
       <CardHeader className="text-center bg-gradient-primary text-primary-foreground rounded-t-lg">
         <div className="flex items-center justify-center gap-3 mb-4">
           <GraduationCap className="w-8 h-8" />
@@ -204,7 +204,7 @@ const HollandTest = () => {
         </p>
       </CardHeader>
       <CardContent className="p-8 space-y-6">
-        <div className="space-y-4">
+        <div className="max-w-2xl mx-auto space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-base font-medium">Họ và tên</Label>
             <Input
@@ -226,12 +226,14 @@ const HollandTest = () => {
             />
           </div>
         </div>
-        <Button 
-          onClick={handlePersonalInfoNext}
-          className="w-full h-12 text-base bg-gradient-primary hover:shadow-glow transition-all duration-300"
-        >
-          Tiếp tục <ArrowRight className="w-5 h-5 ml-2" />
-        </Button>
+        <div className="max-w-2xl mx-auto">
+          <Button 
+            onClick={handlePersonalInfoNext}
+            className="w-full h-12 text-base bg-gradient-primary hover:shadow-glow transition-all duration-300"
+          >
+            Tiếp tục <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -240,7 +242,7 @@ const HollandTest = () => {
     const groupInfo = hollandTypeDescriptions[currentGroup as keyof HollandScores];
     
     return (
-      <Card className="w-full max-w-2xl mx-auto shadow-medium">
+      <Card className="w-full mx-auto shadow-medium">
         <CardHeader className="bg-gradient-warm text-white rounded-t-lg relative">
           <div className="absolute top-4 right-6 text-white/80 font-medium">
             {currentGroupIndex + 1} / {groupTypes.length}
@@ -256,7 +258,7 @@ const HollandTest = () => {
           </p>
         </CardHeader>
         <CardContent className="p-8">
-          <div className="space-y-4">
+          <div className="max-w-2xl mx-auto space-y-4">
             {currentQuestions.map((question) => (
               <div 
                 key={question.id} 
@@ -287,7 +289,7 @@ const HollandTest = () => {
             ))}
           </div>
           
-          <div className="flex justify-between items-center pt-8">
+          <div className="flex justify-between items-center pt-8 max-w-2xl mx-auto">
             <Button
               variant="outline"
               onClick={handlePrevGroup}
@@ -310,7 +312,7 @@ const HollandTest = () => {
   };
 
   const renderBlockSelectionStep = () => (
-    <Card className="w-full max-w-4xl mx-auto shadow-medium">
+    <Card className="w-full mx-auto shadow-medium">
       <CardHeader className="text-center bg-gradient-secondary text-white rounded-t-lg">
         <CardTitle className="text-2xl font-bold flex items-center justify-center gap-3">
           <BookOpen className="w-6 h-6" />
@@ -373,7 +375,7 @@ const HollandTest = () => {
   );
 
   const renderScoreInputStep = () => (
-    <Card className="w-full max-w-4xl mx-auto shadow-medium">
+    <Card className="w-full mx-auto shadow-medium">
       <CardHeader className="text-center bg-gradient-success text-white rounded-t-lg">
         <CardTitle className="text-2xl font-bold flex items-center justify-center gap-3">
           <Target className="w-6 h-6" />
@@ -388,7 +390,7 @@ const HollandTest = () => {
           {scores.map((score, index) => (
             <div key={score.subject} className="bg-muted rounded-lg p-6">
               <h3 className="font-bold text-lg mb-4 text-center">{score.subject}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
                 <div className="space-y-2">
                   <Label className="text-base font-medium">Điểm hiện tại</Label>
                   <Input
@@ -441,7 +443,7 @@ const HollandTest = () => {
   );
 
   const renderResultStep = () => (
-    <div className="w-full max-w-6xl mx-auto space-y-6">
+    <div className="w-full mx-auto space-y-6">
       <Card className="shadow-medium">
         <CardHeader className="text-center bg-gradient-success text-white rounded-t-lg">
           <CardTitle className="text-3xl font-bold flex items-center justify-center gap-3">
