@@ -568,20 +568,20 @@ const HollandTest = () => {
       }}
     >
       {/* School Header - Fixed */}
-      <div className="flex-shrink-0 p-4 pb-0">
+      <div className="flex-shrink-0 px-4 pt-4 pb-2">
         <div className="container mx-auto">
-          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-6">
-            <div className="flex flex-col md:flex-row items-center justify-center gap-4">
+          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-4">
+            <div className="flex flex-col md:flex-row items-center justify-center gap-3">
               <img 
                 src={schoolLogo} 
                 alt="Logo trường THPT Nguyễn Hiền" 
-                className="w-16 h-16 md:w-20 md:h-20 object-contain"
+                className="w-12 h-12 md:w-16 md:h-16 object-contain"
               />
               <div className="text-center md:text-left">
-                <h1 className="text-xl md:text-2xl font-bold text-primary mb-1">
+                <h1 className="text-lg md:text-xl font-bold text-primary mb-1">
                   TRƯỜNG TRUNG HỌC PHỔ THÔNG NGUYỄN HIỀN
                 </h1>
-                <p className="text-base text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   Sở Giáo dục và Đào tạo TP. Hồ Chí Minh
                 </p>
               </div>
@@ -591,15 +591,13 @@ const HollandTest = () => {
       </div>
 
       {/* Main Content - Scrollable */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="container mx-auto h-full flex items-center justify-center">
-          <div className="w-full">
-            {step === 1 && renderPersonalInfoStep()}
-            {step === 2 && renderTestStep()}
-            {step === 3 && renderBlockSelectionStep()}
-            {step === 4 && renderScoreInputStep()}
-            {step === 5 && renderResultStep()}
-          </div>
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <div className="container mx-auto">
+          {step === 1 && renderPersonalInfoStep()}
+          {step === 2 && renderTestStep()}
+          {step === 3 && renderBlockSelectionStep()}
+          {step === 4 && renderScoreInputStep()}
+          {step === 5 && renderResultStep()}
         </div>
       </div>
     </div>
