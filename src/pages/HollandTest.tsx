@@ -559,7 +559,7 @@ const HollandTest = () => {
 
   return (
     <div 
-      className="min-h-screen py-8 px-4 relative"
+      className="h-screen flex flex-col relative"
       style={{
         backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url(${schoolBackground})`,
         backgroundSize: 'cover',
@@ -567,31 +567,40 @@ const HollandTest = () => {
         backgroundAttachment: 'fixed'
       }}
     >
-      {/* School Header */}
-      <div className="container mx-auto mb-8">
-        <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-6 mb-6">
-          <div className="flex flex-col md:flex-row items-center justify-center gap-4">
-            <img 
-              src={schoolLogo} 
-              alt="Logo trường THPT Nguyễn Hiền" 
-              className="w-20 h-20 md:w-24 md:h-24 object-contain"
-            />
-            <div className="text-center md:text-left">
-              <h1 className="text-2xl md:text-3xl font-bold text-primary mb-2">
-                TRƯỜNG TRUNG HỌC PHỔ THÔNG NGUYỄN HIỀN
-              </h1>
-              <p className="text-lg text-muted-foreground">
-                Sở Giáo dục và Đào tạo TP. Hồ Chí Minh
-              </p>
+      {/* School Header - Fixed */}
+      <div className="flex-shrink-0 p-4 pb-0">
+        <div className="container mx-auto">
+          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-6">
+            <div className="flex flex-col md:flex-row items-center justify-center gap-4">
+              <img 
+                src={schoolLogo} 
+                alt="Logo trường THPT Nguyễn Hiền" 
+                className="w-16 h-16 md:w-20 md:h-20 object-contain"
+              />
+              <div className="text-center md:text-left">
+                <h1 className="text-xl md:text-2xl font-bold text-primary mb-1">
+                  TRƯỜNG TRUNG HỌC PHỔ THÔNG NGUYỄN HIỀN
+                </h1>
+                <p className="text-base text-muted-foreground">
+                  Sở Giáo dục và Đào tạo TP. Hồ Chí Minh
+                </p>
+              </div>
             </div>
           </div>
         </div>
-        
-        {step === 1 && renderPersonalInfoStep()}
-        {step === 2 && renderTestStep()}
-        {step === 3 && renderBlockSelectionStep()}
-        {step === 4 && renderScoreInputStep()}
-        {step === 5 && renderResultStep()}
+      </div>
+
+      {/* Main Content - Scrollable */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="container mx-auto h-full flex items-center justify-center">
+          <div className="w-full">
+            {step === 1 && renderPersonalInfoStep()}
+            {step === 2 && renderTestStep()}
+            {step === 3 && renderBlockSelectionStep()}
+            {step === 4 && renderScoreInputStep()}
+            {step === 5 && renderResultStep()}
+          </div>
+        </div>
       </div>
     </div>
   );
