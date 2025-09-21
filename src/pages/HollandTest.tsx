@@ -177,6 +177,7 @@ const HollandTest = () => {
   const groupTypes = Object.keys(groupedQuestions);
   const currentGroup = groupTypes[currentGroupIndex];
   const currentQuestions = groupedQuestions[currentGroup] || [];
+  const containerMaxWidth = step <= 2 ? 'max-w-2xl' : step <= 4 ? 'max-w-4xl' : 'max-w-6xl';
 
   const handleNextGroup = () => {
     if (currentGroupIndex < groupTypes.length - 1) {
@@ -569,7 +570,7 @@ const HollandTest = () => {
     >
       {/* School Header - Fixed */}
       <div className="flex-shrink-0 px-4 pt-4 pb-2">
-        <div className="w-full max-w-6xl mx-auto">
+        <div className={`w-full ${containerMaxWidth} mx-auto`}>
           <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-4">
             <div className="flex flex-col md:flex-row items-center justify-center gap-3">
               <img 
@@ -592,7 +593,7 @@ const HollandTest = () => {
 
       {/* Main Content - Scrollable */}
       <div className="flex-1 overflow-y-auto px-4 pb-4">
-        <div className="w-full max-w-6xl mx-auto">
+        <div className={`w-full ${containerMaxWidth} mx-auto`}>
           {step === 1 && renderPersonalInfoStep()}
           {step === 2 && renderTestStep()}
           {step === 3 && renderBlockSelectionStep()}
