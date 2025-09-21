@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { testBlocks, hollandQuestions, hollandTypeDescriptions, Major, majorsData } from '@/data/testData';
-import { BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight, Target } from 'lucide-react';
+import { testBlocks, hollandTypeDescriptions, Major } from '@/data/testData';
+import { BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight, Target, Loader2 } from 'lucide-react';
+import { apiService, QuestionResponse, SubmitResultRequest, ResultResponse } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import schoolBackground from '@/assets/school-background.jpg';
 import schoolLogo from '@/assets/school-logo.png';
@@ -37,9 +38,10 @@ interface ScoreInput {
 
 interface TestResult {
   topThreeTypes: Array<{ type: keyof HollandScores; score: number }>;
-  compatibleMajors: Major[];
+  compatibleMajors: any[]; // Will be populated from API
   selectedBlocks: string[];
   scores: ScoreInput[];
+  apiResponse?: ResultResponse;
 }
 
 const HollandTest = () => {
@@ -49,6 +51,35 @@ const HollandTest = () => {
   const [selectedBlocks, setSelectedBlocks] = useState<string[]>([]);
   const [scores, setScores] = useState<ScoreInput[]>([]);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
+  
+  // API related states
+  const [questions, setQuestions] = useState<QuestionResponse[]>([]);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+  const [isSubmittingResults, setIsSubmittingResults] = useState(false);
+  const [apiError, setApiError] = useState<string>('');
+
+  // Load questions when component mounts
+  useEffect(() => {
+    loadQuestions();
+  }, []);
+
+  const loadQuestions = async () => {
+    setIsLoadingQuestions(true);
+    setApiError('');
+    try {
+      const fetchedQuestions = await apiService.getQuestions();
+      setQuestions(fetchedQuestions);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Có lỗi xảy ra khi tải câu hỏi');
+      toast({
+        title: "Lỗi tải dữ liệu",
+        description: error instanceof Error ? error.message : 'Có lỗi xảy ra khi tải câu hỏi',
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  };
 
   const handlePersonalInfoNext = () => {
     if (!personalInfo.name.trim() || !personalInfo.class.trim()) {
@@ -59,6 +90,16 @@ const HollandTest = () => {
       });
       return;
     }
+
+    if (questions.length === 0) {
+      toast({
+        title: "Dữ liệu chưa sẵn sàng",
+        description: "Vui lòng đợi tải câu hỏi hoàn tất.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setStep(2);
   };
 
@@ -113,46 +154,64 @@ const HollandTest = () => {
     ));
   };
 
-  const calculateResults = () => {
-    const hollandScores: HollandScores = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
+  const calculateResults = async () => {
+    setIsSubmittingResults(true);
+    setApiError('');
     
-    Object.entries(testAnswers).forEach(([questionId, isAnswered]) => {
-      if (isAnswered) {
-        const question = hollandQuestions.find(q => q.id === parseInt(questionId));
-        if (question) {
-          hollandScores[question.type]++;
+    try {
+      const hollandScores: HollandScores = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
+      
+      Object.entries(testAnswers).forEach(([questionId, isAnswered]) => {
+        if (isAnswered) {
+          const question = questions.find(q => q.id === parseInt(questionId));
+          if (question) {
+            hollandScores[question.type]++;
+          }
         }
-      }
-    });
+      });
 
-    const sortedTypes = Object.entries(hollandScores)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 3)
-      .map(([type, score]) => ({ type: type as keyof HollandScores, score }));
+      const sortedTypes = Object.entries(hollandScores)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 3)
+        .map(([type, score]) => ({ type: type as keyof HollandScores, score }));
 
-    const userHollandTypes = sortedTypes.map(item => item.type);
-    
-    // Find compatible majors in selected blocks
-    const compatibleMajors = majorsData.filter(major => {
-      const hasMatchingBlock = major.examBlocks.some(block => selectedBlocks.includes(block));
-      const hasMatchingHollandType = major.hollandTypes.some(type => userHollandTypes.includes(type as keyof HollandScores));
-      return hasMatchingBlock && hasMatchingHollandType;
-    });
+      // Prepare data for API submission
+      const submitData: SubmitResultRequest = {
+        personalInfo,
+        answers: testAnswers,
+        selectedBlocks,
+        scores,
+        hollandScores
+      };
 
-    const result: TestResult = {
-      topThreeTypes: sortedTypes,
-      compatibleMajors,
-      selectedBlocks,
-      scores
-    };
+      // Submit to API and get recommendations
+      const apiResponse = await apiService.submitResults(submitData);
+      
+      const result: TestResult = {
+        topThreeTypes: sortedTypes,
+        compatibleMajors: apiResponse.recommendedMajors || [],
+        selectedBlocks,
+        scores,
+        apiResponse
+      };
 
-    setTestResult(result);
-    setStep(5);
-    
-    toast({
-      title: "Hoàn thành bài test!",
-      description: "Kết quả Holland của bạn đã được tính toán.",
-    });
+      setTestResult(result);
+      setStep(5);
+      
+      toast({
+        title: "Hoàn thành bài test!",
+        description: apiResponse.message || "Kết quả Holland của bạn đã được tính toán.",
+      });
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Có lỗi xảy ra khi xử lý kết quả');
+      toast({
+        title: "Lỗi xử lý kết quả",
+        description: error instanceof Error ? error.message : 'Có lỗi xảy ra khi xử lý kết quả',
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmittingResults(false);
+    }
   };
 
   const resetTest = () => {
@@ -162,17 +221,20 @@ const HollandTest = () => {
     setSelectedBlocks([]);
     setScores([]);
     setTestResult(null);
+    setApiError('');
+    // Reload questions for new test
+    loadQuestions();
   };
 
   // Group questions by Holland type for the test step
   const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
-  const groupedQuestions = hollandQuestions.reduce((groups, question) => {
+  const groupedQuestions = questions.reduce((groups, question) => {
     if (!groups[question.type]) {
       groups[question.type] = [];
     }
     groups[question.type].push(question);
     return groups;
-  }, {} as Record<string, typeof hollandQuestions>);
+  }, {} as Record<string, QuestionResponse[]>);
 
   const groupTypes = Object.keys(groupedQuestions);
   const currentGroup = groupTypes[currentGroupIndex];
@@ -227,11 +289,36 @@ const HollandTest = () => {
             />
           </div>
         </div>
+        {apiError && (
+          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+            <p className="text-destructive text-sm">{apiError}</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={loadQuestions}
+              className="mt-2"
+              disabled={isLoadingQuestions}
+            >
+              {isLoadingQuestions ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Thử lại
+            </Button>
+          </div>
+        )}
         <Button
             onClick={handlePersonalInfoNext}
+            disabled={isLoadingQuestions || questions.length === 0}
             className="w-full h-12 text-base bg-gradient-primary hover:shadow-glow transition-all duration-300"
           >
-            Tiếp tục <ArrowRight className="w-5 h-5 ml-2" />
+            {isLoadingQuestions ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Đang tải câu hỏi...
+              </>
+            ) : (
+              <>
+                Tiếp tục <ArrowRight className="w-5 h-5 ml-2" />
+              </>
+            )}
           </Button>
       </CardContent>
     </Card>
@@ -432,9 +519,19 @@ const HollandTest = () => {
           
           <Button 
             onClick={calculateResults}
+            disabled={isSubmittingResults}
             className="bg-gradient-primary hover:shadow-glow px-8 py-3"
           >
-            Hoàn thành <CheckCircle className="w-5 h-5 ml-2" />
+            {isSubmittingResults ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Đang xử lý...
+              </>
+            ) : (
+              <>
+                Hoàn thành <CheckCircle className="w-5 h-5 ml-2" />
+              </>
+            )}
           </Button>
         </div>
       </CardContent>
@@ -488,13 +585,13 @@ const HollandTest = () => {
             <div>
               <h3 className="text-xl font-bold mb-4">Ngành học phù hợp</h3>
               <div className="space-y-3">
-                {testResult?.compatibleMajors.length ? (
-                  testResult.compatibleMajors.slice(0, 5).map(major => (
-                    <div key={major.id} className="p-4 bg-education-green/10 border border-education-green/20 rounded-lg">
+                {testResult?.compatibleMajors && testResult.compatibleMajors.length > 0 ? (
+                  testResult.compatibleMajors.slice(0, 5).map((major, index) => (
+                    <div key={major.id || index} className="p-4 bg-education-green/10 border border-education-green/20 rounded-lg">
                       <h4 className="font-bold text-education-green">{major.name}</h4>
                       <p className="text-sm text-muted-foreground mt-1">{major.description}</p>
                       <div className="flex flex-wrap gap-1 mt-2">
-                        {major.examBlocks.filter(block => testResult.selectedBlocks.includes(block)).map(block => (
+                        {major.examBlocks?.filter((block: string) => testResult.selectedBlocks.includes(block)).map((block: string) => (
                           <Badge key={block} variant="secondary" className="text-xs">
                             {block}
                           </Badge>
@@ -505,8 +602,8 @@ const HollandTest = () => {
                 ) : (
                   <div className="p-4 bg-education-orange/10 border border-education-orange/20 rounded-lg">
                     <p className="text-education-orange">
-                      Không tìm thấy ngành học phù hợp hoàn toàn với kết quả Holland và khối thi đã chọn. 
-                      Hãy tham khảo thêm ý kiến từ thầy cô hướng nghiệp.
+                      {testResult?.apiResponse?.message || 
+                       "Không tìm thấy ngành học phù hợp hoàn toàn với kết quả Holland và khối thi đã chọn. Hãy tham khảo thêm ý kiến từ thầy cô hướng nghiệp."}
                     </p>
                   </div>
                 )}
