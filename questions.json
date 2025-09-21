@@ -1,0 +1,58 @@
+[
+    {
+        "id": "CNTT",
+        "name": "Công nghệ thông tin",
+        "description": "Thiết kế, phát triển và quản lý hệ thống CNTT",
+        "examBlocks": [
+            "A00",
+            "A01",
+            "D01"
+        ],
+        "hollandTypes": [
+            "I",
+            "R"
+        ]
+    },
+    {
+        "id": "YKHOA",
+        "name": "Y khoa",
+        "description": "Chăm sóc sức khỏe, nghiên cứu y học",
+        "examBlocks": [
+            "B00"
+        ],
+        "hollandTypes": [
+            "S",
+            "I"
+        ]
+    },
+    {
+        "id": "KINHTE",
+        "name": "Kinh tế",
+        "description": "Phân tích thị trường, quản lý tài chính",
+        "examBlocks": [
+            "A00",
+            "A01",
+            "D01"
+        ],
+        "hollandTypes": [
+            "C",
+            "E"
+        ]
+    },
+    {
+        "id": "MARKETING",
+        "name": "Marketing",
+        "description": "Chiến lược quảng bá, nghiên cứu thị trường",
+        "examBlocks": [
+            "A00",
+            "A01",
+            "D01",
+            "C00"
+        ],
+        "hollandTypes": [
+            "E",
+            "A"
+        ]
+    }
+    // ...thêm các ngành khác tương tự
+]

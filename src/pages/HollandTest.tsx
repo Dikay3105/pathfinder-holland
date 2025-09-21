@@ -10,7 +10,7 @@ import { BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight, 
 import { apiService, QuestionResponse, SubmitResultRequest, ResultResponse } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import schoolBackground from '@/assets/school-background.jpg';
-import schoolLogo from '@/assets/school-logo.png';
+import schoolLogo from '@/assets/school-logo1.png';
 
 interface PersonalInfo {
   name: string;
@@ -51,7 +51,7 @@ const HollandTest = () => {
   const [selectedBlocks, setSelectedBlocks] = useState<string[]>([]);
   const [scores, setScores] = useState<ScoreInput[]>([]);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
-  
+
   // API related states
   const [questions, setQuestions] = useState<QuestionResponse[]>([]);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
@@ -111,8 +111,8 @@ const HollandTest = () => {
   };
 
   const handleBlockToggle = (blockId: string) => {
-    setSelectedBlocks(prev => 
-      prev.includes(blockId) 
+    setSelectedBlocks(prev =>
+      prev.includes(blockId)
         ? prev.filter(id => id !== blockId)
         : [...prev, blockId]
     );
@@ -143,13 +143,13 @@ const HollandTest = () => {
       currentScore: 0,
       targetScore: 0
     }));
-    
+
     setScores(initialScores);
     setStep(4);
   };
 
   const handleScoreChange = (index: number, field: 'currentScore' | 'targetScore', value: number) => {
-    setScores(prev => prev.map((score, i) => 
+    setScores(prev => prev.map((score, i) =>
       i === index ? { ...score, [field]: value } : score
     ));
   };
@@ -157,10 +157,10 @@ const HollandTest = () => {
   const calculateResults = async () => {
     setIsSubmittingResults(true);
     setApiError('');
-    
+
     try {
       const hollandScores: HollandScores = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
-      
+
       Object.entries(testAnswers).forEach(([questionId, isAnswered]) => {
         if (isAnswered) {
           const question = questions.find(q => q.id === parseInt(questionId));
@@ -186,7 +186,7 @@ const HollandTest = () => {
 
       // Submit to API and get recommendations
       const apiResponse = await apiService.submitResults(submitData);
-      
+
       const result: TestResult = {
         topThreeTypes: sortedTypes,
         compatibleMajors: apiResponse.recommendedMajors || [],
@@ -197,7 +197,7 @@ const HollandTest = () => {
 
       setTestResult(result);
       setStep(5);
-      
+
       toast({
         title: "Hoàn thành bài test!",
         description: apiResponse.message || "Kết quả Holland của bạn đã được tính toán.",
@@ -286,15 +286,20 @@ const HollandTest = () => {
               onChange={(e) => setPersonalInfo(prev => ({ ...prev, class: e.target.value }))}
               placeholder="Nhập lớp của bạn (VD: 12A1)"
               className="h-12 text-base"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handlePersonalInfoNext();
+                }
+              }}
             />
           </div>
         </div>
         {apiError && (
           <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
             <p className="text-destructive text-sm">{apiError}</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={loadQuestions}
               className="mt-2"
               disabled={isLoadingQuestions}
@@ -305,28 +310,28 @@ const HollandTest = () => {
           </div>
         )}
         <Button
-            onClick={handlePersonalInfoNext}
-            disabled={isLoadingQuestions || questions.length === 0}
-            className="w-full h-12 text-base bg-gradient-primary hover:shadow-glow transition-all duration-300"
-          >
-            {isLoadingQuestions ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Đang tải câu hỏi...
-              </>
-            ) : (
-              <>
-                Tiếp tục <ArrowRight className="w-5 h-5 ml-2" />
-              </>
-            )}
-          </Button>
+          onClick={handlePersonalInfoNext}
+          disabled={isLoadingQuestions || questions.length === 0}
+          className="w-full h-12 text-base bg-gradient-primary hover:shadow-glow transition-all duration-300"
+        >
+          {isLoadingQuestions ? (
+            <>
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Đang tải câu hỏi...
+            </>
+          ) : (
+            <>
+              Tiếp tục <ArrowRight className="w-5 h-5 ml-2" />
+            </>
+          )}
+        </Button>
       </CardContent>
     </Card>
   );
 
   const renderTestStep = () => {
     const groupInfo = hollandTypeDescriptions[currentGroup as keyof HollandScores];
-    
+
     return (
       <Card className="w-full max-w-2xl mx-auto shadow-medium">
         <CardHeader className="bg-gradient-warm text-white rounded-t-lg relative">
@@ -346,25 +351,24 @@ const HollandTest = () => {
         <CardContent className="p-8">
           <div className="space-y-4">
             {currentQuestions.map((question) => (
-              <div 
-                key={question.id} 
-                className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 ${
-                  testAnswers[question.id] 
-                    ? 'bg-education-green text-white border-education-green' 
-                    : 'border-muted bg-background hover:bg-muted/50'
-                }`}
+              <div
+                key={question.id}
+                className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 ${testAnswers[question.id]
+                  ? 'bg-education-green text-white border-education-green'
+                  : 'border-muted bg-background hover:bg-muted/50'
+                  }`}
                 onClick={() => handleAnswerChange(question.id, !testAnswers[question.id])}
               >
                 <div className="flex items-center space-x-4">
                   <Checkbox
                     id={`question-${question.id}`}
                     checked={testAnswers[question.id] || false}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       handleAnswerChange(question.id, checked as boolean)
                     }
                     className="pointer-events-none"
                   />
-                  <Label 
+                  <Label
                     htmlFor={`question-${question.id}`}
                     className="text-base leading-relaxed cursor-pointer flex-1"
                   >
@@ -374,7 +378,7 @@ const HollandTest = () => {
               </div>
             ))}
           </div>
-          
+
           <div className="flex justify-between items-center pt-8">
             <Button
               variant="outline"
@@ -384,7 +388,7 @@ const HollandTest = () => {
             >
               Quay lại
             </Button>
-            
+
             <Button
               onClick={handleNextGroup}
               className="px-8 py-3 bg-education-green hover:bg-education-green/90 text-white"
@@ -409,18 +413,17 @@ const HollandTest = () => {
       <CardContent className="p-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {testBlocks.map(block => (
-            <Card 
+            <Card
               key={block.id}
-              className={`cursor-pointer transition-all duration-300 hover:scale-105 border-2 ${
-                selectedBlocks.includes(block.id) 
-                  ? 'border-primary bg-primary/10' 
-                  : 'border-muted hover:border-primary'
-              }`}
+              className={`cursor-pointer transition-all duration-300 hover:scale-105 border-2 ${selectedBlocks.includes(block.id)
+                ? 'border-primary bg-primary/10'
+                : 'border-muted hover:border-primary'
+                }`}
               onClick={() => handleBlockToggle(block.id)}
             >
               <CardContent className="p-6 text-center">
                 <div className="flex items-center justify-center mb-2">
-                  <Checkbox 
+                  <Checkbox
                     checked={selectedBlocks.includes(block.id)}
                     className="mr-3"
                   />
@@ -431,23 +434,23 @@ const HollandTest = () => {
             </Card>
           ))}
         </div>
-        
+
         <div className="mt-8 flex justify-between items-center">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => setStep(2)}
             className="hover:bg-muted"
           >
             Quay lại làm test
           </Button>
-          
+
           <div className="text-center">
             {selectedBlocks.length > 0 && (
               <p className="text-sm text-muted-foreground mb-2">
                 Đã chọn {selectedBlocks.length} khối thi
               </p>
             )}
-            <Button 
+            <Button
               onClick={handleBlockSelectionNext}
               disabled={selectedBlocks.length === 0}
               className="bg-gradient-primary hover:shadow-glow px-8 py-3"
@@ -507,17 +510,17 @@ const HollandTest = () => {
             </div>
           ))}
         </div>
-        
+
         <div className="mt-8 flex justify-between items-center">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => setStep(3)}
             className="hover:bg-muted"
           >
             Quay lại chọn khối
           </Button>
-          
-          <Button 
+
+          <Button
             onClick={calculateResults}
             disabled={isSubmittingResults}
             className="bg-gradient-primary hover:shadow-glow px-8 py-3"
@@ -602,8 +605,8 @@ const HollandTest = () => {
                 ) : (
                   <div className="p-4 bg-education-orange/10 border border-education-orange/20 rounded-lg">
                     <p className="text-education-orange">
-                      {testResult?.apiResponse?.message || 
-                       "Không tìm thấy ngành học phù hợp hoàn toàn với kết quả Holland và khối thi đã chọn. Hãy tham khảo thêm ý kiến từ thầy cô hướng nghiệp."}
+                      {testResult?.apiResponse?.message ||
+                        "Không tìm thấy ngành học phù hợp hoàn toàn với kết quả Holland và khối thi đã chọn. Hãy tham khảo thêm ý kiến từ thầy cô hướng nghiệp."}
                     </p>
                   </div>
                 )}
@@ -627,12 +630,11 @@ const HollandTest = () => {
                         <div className="text-sm text-muted-foreground">
                           Mục tiêu: <span className="font-medium">{score.targetScore}</span>
                         </div>
-                        <div className={`text-sm font-medium ${
-                          gap > 0 ? 'text-education-orange' : gap === 0 ? 'text-education-green' : 'text-muted-foreground'
-                        }`}>
-                          {gap > 0 ? `Cần cải thiện: +${gap.toFixed(1)}` : 
-                           gap === 0 ? 'Đã đạt mục tiêu' : 
-                           'Vượt mục tiêu'}
+                        <div className={`text-sm font-medium ${gap > 0 ? 'text-education-orange' : gap === 0 ? 'text-education-green' : 'text-muted-foreground'
+                          }`}>
+                          {gap > 0 ? `Cần cải thiện: +${gap.toFixed(1)}` :
+                            gap === 0 ? 'Đã đạt mục tiêu' :
+                              'Vượt mục tiêu'}
                         </div>
                       </div>
                     </div>
@@ -641,9 +643,9 @@ const HollandTest = () => {
               </div>
             </div>
           )}
-          
+
           <div className="mt-8 text-center">
-            <Button 
+            <Button
               onClick={resetTest}
               className="bg-gradient-primary hover:shadow-glow px-8 py-3"
             >
@@ -656,7 +658,7 @@ const HollandTest = () => {
   );
 
   return (
-    <div 
+    <div
       className="h-screen flex flex-col relative"
       style={{
         backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url(${schoolBackground})`,
@@ -670,9 +672,9 @@ const HollandTest = () => {
         <div className={`w-full ${containerMaxWidth} mx-auto`}>
           <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-4">
             <div className="flex flex-col md:flex-row items-center justify-center gap-3">
-              <img 
-                src={schoolLogo} 
-                alt="Logo trường THPT Nguyễn Hiền" 
+              <img
+                src={schoolLogo}
+                alt="Logo trường THPT Nguyễn Hiền"
                 className="w-12 h-12 md:w-16 md:h-16 object-contain"
               />
               <div className="text-center md:text-left">
