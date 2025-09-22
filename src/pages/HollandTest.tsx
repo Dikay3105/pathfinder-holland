@@ -219,6 +219,7 @@ const HollandTest = () => {
 
   const resetTest = () => {
     setStep(1);
+    setCurrentGroupIndex(0); // Reset về câu hỏi đầu tiên
     setPersonalInfo({ name: '', class: '' });
     setTestAnswers({});
     setSelectedBlocks([]);
@@ -327,6 +328,10 @@ const HollandTest = () => {
   const handleNextGroup = () => {
     if (currentGroupIndex < groupTypes.length - 1) {
       setCurrentGroupIndex(prev => prev + 1);
+      // Auto-scroll to top after state update
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 100);
     } else {
       setStep(3);
     }
@@ -335,6 +340,10 @@ const HollandTest = () => {
   const handlePrevGroup = () => {
     if (currentGroupIndex > 0) {
       setCurrentGroupIndex(prev => prev - 1);
+      // Auto-scroll to top after state update
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 100);
     }
   };
 
