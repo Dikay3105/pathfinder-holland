@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { toast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import schoolBackground from '@/assets/school-background.jpg';
 import schoolLogo from '@/assets/school-logo1.png';
+import { addDejavuFont } from "../../public/fonts/DejaVuSans"; // file chứa base64 font
 
 interface PersonalInfo {
   name: string;
@@ -47,6 +48,7 @@ interface TestResult {
 }
 
 const HollandTest = () => {
+  const scrollDivRef = useRef(null);
   const [step, setStep] = useState(1);
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ name: '', class: '' });
   const [testAnswers, setTestAnswers] = useState<TestAnswers>({});
@@ -148,6 +150,14 @@ const HollandTest = () => {
 
     setScores(initialScores);
     setStep(4);
+    setTimeout(() => {
+      if (scrollDivRef.current) {
+        scrollDivRef.current.scrollTo({
+          top: 0,
+          behavior: 'smooth', // Cuộn mượt mà
+        });
+      }
+    }, 100);
   };
 
   const handleScoreChange = (index: number, field: 'currentScore' | 'targetScore', value: number) => {
@@ -200,10 +210,18 @@ const HollandTest = () => {
 
       setTestResult(result);
       setStep(5);
+      setTimeout(() => {
+        if (scrollDivRef.current) {
+          scrollDivRef.current.scrollTo({
+            top: 0,
+            behavior: 'smooth', // Cuộn mượt mà
+          });
+        }
+      }, 100);
 
       toast({
         title: "Hoàn thành bài test!",
-        description: apiResponse.message || "Kết quả Holland của bạn đã được tính toán.",
+        description: apiResponse.recommendationText || "Kết quả Holland của bạn đã được tính toán.",
       });
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Có lỗi xảy ra khi xử lý kết quả');
@@ -219,7 +237,7 @@ const HollandTest = () => {
 
   const resetTest = () => {
     setStep(1);
-    setCurrentGroupIndex(0); // Reset về câu hỏi đầu tiên
+    setCurrentGroupIndex(0);
     setPersonalInfo({ name: '', class: '' });
     setTestAnswers({});
     setSelectedBlocks([]);
@@ -230,85 +248,124 @@ const HollandTest = () => {
     loadQuestions();
   };
 
+  const addLine = (doc, text, x, yState, lineHeight = 8) => {
+    // nếu sắp chạm đáy trang (A4 cao 297mm, chừa lề 20)
+    if (yState.value > 270) {
+      doc.addPage();
+      yState.value = 20; // đặt lại vị trí đầu trang mới
+    }
+    doc.text(text, x, yState.value);
+    yState.value += lineHeight;
+  };
+
+
   const generatePDF = () => {
-    if (!testResult) return;
+    if (!testResult || !personalInfo) return;
 
     const doc = new jsPDF();
-    
-    // Header
+
+    // ✅ Thêm font hỗ trợ tiếng Việt (đảm bảo bạn đã có hàm addDejavuFont)
+    addDejavuFont(doc);
+    doc.setFont("DejaVuSans", "normal");
+
+    const pageHeight = doc.internal.pageSize.getHeight(); // ≈ 297mm cho A4
+    const bottomMargin = 20;
+
+    const checkPageBreak = (nextY: number) => {
+      if (nextY > pageHeight - bottomMargin) {
+        doc.addPage();
+        return 20; // reset yPosition cho trang mới
+      }
+      return nextY;
+    };
+
+    // ===== Giữ nguyên nội dung cũ =====
     doc.setFontSize(20);
-    doc.text('KET QUA TEST HOLLAND', 105, 20, { align: 'center' });
+    doc.text("KẾT QUẢ TEST HOLLAND", 105, 20, { align: "center" });
     doc.setFontSize(16);
-    doc.text('TRUONG THPT NGUYEN HIEN', 105, 30, { align: 'center' });
-    
-    // Personal Info
+    doc.text("TRƯỜNG THPT NGUYỄN HIỀN", 105, 30, { align: "center" });
+
     doc.setFontSize(12);
-    doc.text('Ho va ten: ' + personalInfo.name, 20, 50);
-    doc.text('Lop: ' + personalInfo.class, 20, 60);
-    doc.text('Nhom Holland: ' + testResult.topThreeTypes.map(item => item.type).join(''), 20, 70);
-    
-    // Result Text from API
+    doc.text("Họ và tên: " + personalInfo.name, 20, 50);
+    doc.text("Lớp: " + personalInfo.class, 20, 60);
+    doc.text(
+      "Nhóm Holland: " +
+      testResult.topThreeTypes.map((item) => item.type).join(""),
+      20,
+      70
+    );
+
     if (testResult.recommendationText) {
       doc.setFontSize(14);
-      doc.text('KET QUA PHAN TICH:', 20, 90);
-      
-      // Split recommendation text into multiple lines
+      doc.text("KẾT QUẢ PHÂN TÍCH:", 20, 90);
+
       const lines = doc.splitTextToSize(testResult.recommendationText, 170);
       doc.setFontSize(12);
       let yPosition = 105;
-      lines.forEach((line: string) => {
+
+      lines.forEach((line) => {
+        yPosition = checkPageBreak(yPosition + 8);
         doc.text(line, 20, yPosition);
-        yPosition += 8;
       });
-      
-      // Compatible Majors
+
       if (testResult.compatibleMajors && testResult.compatibleMajors.length > 0) {
-        yPosition += 15;
+        yPosition = checkPageBreak(yPosition + 15);
         doc.setFontSize(14);
-        doc.text('NGANH HOC PHU HOP:', 20, yPosition);
+        doc.text("NGÀNH HỌC PHÙ HỢP:", 20, yPosition);
         yPosition += 10;
-        
+
         testResult.compatibleMajors.slice(0, 8).forEach((major, index) => {
+          yPosition = checkPageBreak(yPosition + 8);
           doc.setFontSize(11);
-          doc.text((index + 1) + '. ' + major.name, 25, yPosition);
-          yPosition += 8;
+          doc.text(index + 1 + ". " + major.name, 25, yPosition);
+
           if (major.description) {
-            const descLines = doc.splitTextToSize('   ' + major.description, 150);
+            const descLines = doc.splitTextToSize("   " + major.description, 150);
             doc.setFontSize(9);
-            descLines.forEach((line: string) => {
-              doc.text(line, 30, yPosition);
-              yPosition += 6;
+            descLines.forEach((desc) => {
+              yPosition = checkPageBreak(yPosition + 6);
+              doc.text(desc, 30, yPosition);
             });
           }
           yPosition += 3;
         });
       }
     } else {
-      // Fallback to old format if recommendationText is not available
       doc.setFontSize(14);
-      doc.text('TOP 3 NHOM HOLLAND CUA BAN:', 20, 90);
-      
+      doc.text("TOP 3 NHÓM HOLLAND CỦA BẠN:", 20, 90);
+
       let yPosition = 100;
       testResult.topThreeTypes.forEach((item, index) => {
+        yPosition = checkPageBreak(yPosition + 15);
         doc.setFontSize(12);
-        doc.text((index + 1) + '. ' + hollandTypeDescriptions[item.type].name + ' (' + item.score + '/10)', 25, yPosition);
-        yPosition += 15;
+        doc.text(
+          index + 1 + ". " + hollandTypeDescriptions[item.type].name +
+          " (" + item.score + "/10)",
+          25,
+          yPosition
+        );
       });
     }
-    
-    // Footer
+
+    // Footer (đặt ở trang cuối cùng)
     doc.setFontSize(8);
-    doc.text('Ngay tao: ' + new Date().toLocaleDateString('vi-VN'), 20, 280);
-    
-    // Save the PDF
-    const fileName = 'KetQuaHollandTest_' + personalInfo.name + '_' + personalInfo.class + '_' + new Date().getTime() + '.pdf';
+    const dateText = "Ngày tạo: " + new Date().toLocaleDateString("vi-VN");
+    const footerY = pageHeight - 10;
+    doc.text(dateText, 20, footerY);
+
+    const safeName = personalInfo.name.replace(/[\\/:*?"<>|]/g, "_");
+    const fileName =
+      "KetQuaHollandTest_" + safeName + "_" + personalInfo.class + "_" + Date.now() + ".pdf";
+
     doc.save(fileName);
-    
+
     toast({
       title: "Xuất PDF thành công!",
       description: "Đã lưu file: " + fileName,
     });
   };
+
+
 
   // Group questions by Holland type for the test step
   const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
@@ -329,12 +386,18 @@ const HollandTest = () => {
     if (currentGroupIndex < groupTypes.length - 1) {
       setCurrentGroupIndex(prev => prev + 1);
       // Auto-scroll to top after state update
-      setTimeout(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }, 100);
+
     } else {
       setStep(3);
     }
+    setTimeout(() => {
+      if (scrollDivRef.current) {
+        scrollDivRef.current.scrollTo({
+          top: 0,
+          behavior: 'smooth', // Cuộn mượt mà
+        });
+      }
+    }, 100);
   };
 
   const handlePrevGroup = () => {
@@ -342,7 +405,12 @@ const HollandTest = () => {
       setCurrentGroupIndex(prev => prev - 1);
       // Auto-scroll to top after state update
       setTimeout(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (scrollDivRef.current) {
+          scrollDivRef.current.scrollTo({
+            top: 0,
+            behavior: 'smooth', // Cuộn mượt mà
+          });
+        }
       }, 100);
     }
   };
@@ -368,6 +436,7 @@ const HollandTest = () => {
               onChange={(e) => setPersonalInfo(prev => ({ ...prev, name: e.target.value }))}
               placeholder="Nhập họ và tên của bạn"
               className="h-12 text-base"
+              autoFocus
             />
           </div>
           <div className="space-y-2">
@@ -451,17 +520,17 @@ const HollandTest = () => {
                   }`}
                 onClick={() => handleAnswerChange(question.id, !testAnswers[question.id])}
               >
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-4" >
                   <Checkbox
                     id={`question-${question.id}`}
                     checked={testAnswers[question.id] || false}
                     onCheckedChange={(checked) =>
                       handleAnswerChange(question.id, checked as boolean)
                     }
-                    className="pointer-events-none"
+                  // className="pointer-events-none"
                   />
                   <Label
-                    htmlFor={`question-${question.id}`}
+                    // htmlFor={`question-${question.id}`}
                     className="text-base leading-relaxed cursor-pointer flex-1"
                   >
                     {question.text}
@@ -530,7 +599,17 @@ const HollandTest = () => {
         <div className="mt-8 flex justify-between items-center">
           <Button
             variant="outline"
-            onClick={() => setStep(2)}
+            onClick={() => {
+              setStep(2)
+              setTimeout(() => {
+                if (scrollDivRef.current) {
+                  scrollDivRef.current.scrollTo({
+                    top: 0,
+                    behavior: 'smooth', // Cuộn mượt mà
+                  });
+                }
+              }, 100);
+            }}
             className="hover:bg-muted"
           >
             Quay lại làm test
@@ -606,7 +685,17 @@ const HollandTest = () => {
         <div className="mt-8 flex justify-between items-center">
           <Button
             variant="outline"
-            onClick={() => setStep(3)}
+            onClick={() => {
+              setStep(3)
+              setTimeout(() => {
+                if (scrollDivRef.current) {
+                  scrollDivRef.current.scrollTo({
+                    top: 0,
+                    behavior: 'smooth', // Cuộn mượt mà
+                  });
+                }
+              }, 100);
+            }}
             className="hover:bg-muted"
           >
             Quay lại chọn khối
@@ -652,47 +741,49 @@ const HollandTest = () => {
         </CardHeader>
         <CardContent className="p-8">
           {/* Recommendation Text from API - Priority display */}
-          {testResult?.recommendationText && (
-            <div className="mb-8">
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Target className="w-5 h-5" />
-                Kết quả phân tích Holland
-              </h3>
-              <div className="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-all duration-300">
-                <div className="prose prose-sm max-w-none">
-                  <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
-                    {testResult.recommendationText}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Show Holland types details only if no API recommendation text */}
-            {!testResult?.recommendationText && (
-              <div>
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5" />
-                  Top 3 nhóm Holland của bạn
-                </h3>
-                <div className="space-y-3">
-                  {testResult?.topThreeTypes.map((item, index) => (
-                    <div key={item.type} className="flex items-center space-x-4 p-4 bg-muted rounded-lg">
-                      <div className="text-2xl font-bold text-primary">#{index + 1}</div>
-                      <div className="flex-1">
-                        <div className="font-semibold">
-                          {hollandTypeDescriptions[item.type].name}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {hollandTypeDescriptions[item.type].description}
-                        </div>
+            {/* {!testResult?.recommendationText && ( */}
+            <div>
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                Top 3 nhóm Holland của bạn
+              </h3>
+              <div className="space-y-3">
+                {testResult?.topThreeTypes.map((item, index) => (
+                  <div key={item.type} className="flex items-center space-x-4 p-4 bg-muted rounded-lg">
+                    <div className="text-2xl font-bold text-primary">#{index + 1}</div>
+                    <div className="flex-1">
+                      <div className="font-semibold">
+                        {hollandTypeDescriptions[item.type].name}
                       </div>
-                      <Badge className={`bg-education-${hollandTypeDescriptions[item.type].color} text-white`}>
-                        {item.score}/10
-                      </Badge>
+                      <div className="text-sm text-muted-foreground">
+                        {hollandTypeDescriptions[item.type].description}
+                      </div>
                     </div>
-                  ))}
+                    <Badge className={`bg-education-${hollandTypeDescriptions[item.type].color} text-white`}>
+                      {item.score}/10
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* )} */}
+
+            {testResult?.recommendationText && (
+              <div className="mb-8">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <Target className="w-5 h-5" />
+                  Kết quả phân tích Holland
+                </h3>
+                <div className="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-all duration-300">
+                  <div className="prose prose-sm max-w-none">
+                    <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                      {testResult.recommendationText}
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -717,8 +808,8 @@ const HollandTest = () => {
                 ) : (
                   <div className="p-4 bg-education-orange/10 border border-education-orange/20 rounded-lg">
                     <p className="text-education-orange">
-                      {testResult?.apiResponse?.message ||
-                        "Không tìm thấy ngành học phù hợp hoàn toàn với kết quả Holland và khối thi đã chọn. Hãy tham khảo thêm ý kiến từ thầy cô hướng nghiệp."}
+                      {testResult?.apiResponse?.recommendedMajors ?
+                        "Không tìm thấy ngành học phù hợp hoàn toàn với kết quả Holland và khối thi đã chọn. Hãy tham khảo thêm ý kiến từ thầy cô hướng nghiệp." : testResult?.apiResponse?.message}
                     </p>
                   </div>
                 )}
@@ -799,7 +890,7 @@ const HollandTest = () => {
               />
               <div className="text-center md:text-left">
                 <h1 className="text-lg md:text-xl font-bold text-primary mb-1">
-                  TRƯỜNG TRUNG HỌC PHỔ THÔNG NGUYỄN HIỀN
+                  TRƯỜNG THPT NGUYỄN HIỀN
                 </h1>
                 <p className="text-sm text-muted-foreground">
                   Sở Giáo dục và Đào tạo TP. Hồ Chí Minh
@@ -811,7 +902,7 @@ const HollandTest = () => {
       </div>
 
       {/* Main Content - Scrollable */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      <div ref={scrollDivRef} className="flex-1 overflow-y-auto px-4 pb-4 custom-scroll">
         <div className={`w-full ${containerMaxWidth} mx-auto`}>
           {step === 1 && renderPersonalInfoStep()}
           {step === 2 && renderTestStep()}

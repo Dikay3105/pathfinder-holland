@@ -128,3 +128,20 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Ẩn thanh cuộn trên Webkit (Chrome, Safari) */
+.custom-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Ẩn thanh cuộn trên Firefox */
+.custom-scroll {
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+/* Ẩn thanh cuộn trên Edge và IE */
+.custom-scroll {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+}
