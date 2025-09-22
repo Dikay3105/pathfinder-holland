@@ -6,9 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { testBlocks, hollandTypeDescriptions, Major } from '@/data/testData';
-import { BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight, Target, Loader2 } from 'lucide-react';
+import { BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight, Target, Loader2, Download } from 'lucide-react';
 import { apiService, QuestionResponse, SubmitResultRequest, ResultResponse } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
+import jsPDF from 'jspdf';
 import schoolBackground from '@/assets/school-background.jpg';
 import schoolLogo from '@/assets/school-logo1.png';
 
@@ -224,6 +225,99 @@ const HollandTest = () => {
     setApiError('');
     // Reload questions for new test
     loadQuestions();
+  };
+
+  const generatePDF = () => {
+    if (!testResult) return;
+
+    const doc = new jsPDF();
+    
+    // Add UTF-8 support for Vietnamese
+    doc.setFont('helvetica');
+    
+    // Header
+    doc.setFontSize(20);
+    doc.text('KET QUA TEST HOLLAND', 105, 20, { align: 'center' });
+    doc.setFontSize(16);
+    doc.text('TRUONG THPT NGUYEN HIEN', 105, 30, { align: 'center' });
+    
+    // Personal Info
+    doc.setFontSize(12);
+    doc.text(`Ho va ten: ${personalInfo.name}`, 20, 50);
+    doc.text(`Lop: ${personalInfo.class}`, 20, 60);
+    doc.text(`Nhom Holland: ${testResult.topThreeTypes.map(item => item.type).join('')}`, 20, 70);
+    
+    // Holland Types
+    doc.setFontSize(14);
+    doc.text('TOP 3 NHOM HOLLAND CUA BAN:', 20, 90);
+    
+    let yPosition = 100;
+    testResult.topThreeTypes.forEach((item, index) => {
+      doc.setFontSize(12);
+      doc.text(`${index + 1}. ${hollandTypeDescriptions[item.type].name} (${item.score}/10)`, 25, yPosition);
+      // Split long description into multiple lines
+      const description = hollandTypeDescriptions[item.type].description;
+      const lines = doc.splitTextToSize(description, 150);
+      doc.setFontSize(10);
+      lines.forEach((line: string, lineIndex: number) => {
+        doc.text(line, 30, yPosition + 10 + (lineIndex * 5));
+      });
+      yPosition += 10 + (lines.length * 5) + 5;
+    });
+    
+    // Compatible Majors
+    yPosition += 10;
+    doc.setFontSize(14);
+    doc.text('NGANH HOC PHU HOP:', 20, yPosition);
+    yPosition += 10;
+    
+    if (testResult.compatibleMajors && testResult.compatibleMajors.length > 0) {
+      testResult.compatibleMajors.slice(0, 5).forEach((major, index) => {
+        doc.setFontSize(12);
+        doc.text(`${index + 1}. ${major.name}`, 25, yPosition);
+        if (major.description) {
+          const lines = doc.splitTextToSize(major.description, 150);
+          doc.setFontSize(10);
+          lines.forEach((line: string, lineIndex: number) => {
+            doc.text(line, 30, yPosition + 10 + (lineIndex * 5));
+          });
+          yPosition += 10 + (lines.length * 5) + 5;
+        } else {
+          yPosition += 10;
+        }
+      });
+    } else {
+      doc.setFontSize(10);
+      doc.text('Khong tim thay nganh hoc phu hop hoan toan.', 25, yPosition);
+      yPosition += 15;
+    }
+    
+    // Score Summary if available
+    if (testResult.scores && testResult.scores.length > 0) {
+      yPosition += 10;
+      doc.setFontSize(14);
+      doc.text('BANG DIEM:', 20, yPosition);
+      yPosition += 10;
+      
+      testResult.scores.forEach((score) => {
+        doc.setFontSize(10);
+        doc.text(`${score.subject}: Hien tai ${score.currentScore} - Muc tieu ${score.targetScore}`, 25, yPosition);
+        yPosition += 8;
+      });
+    }
+    
+    // Footer
+    doc.setFontSize(8);
+    doc.text(`Ngay tao: ${new Date().toLocaleDateString('vi-VN')}`, 20, 280);
+    
+    // Save the PDF
+    const fileName = `KetQuaHollandTest_${personalInfo.name}_${personalInfo.class}_${new Date().getTime()}.pdf`;
+    doc.save(fileName);
+    
+    toast({
+      title: "Xuất PDF thành công!",
+      description: `Đã lưu file: ${fileName}`,
+    });
   };
 
   // Group questions by Holland type for the test step
@@ -644,7 +738,15 @@ const HollandTest = () => {
             </div>
           )}
 
-          <div className="mt-8 text-center">
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Button
+              onClick={generatePDF}
+              variant="outline"
+              className="px-8 py-3 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+            >
+              <Download className="w-5 h-5 mr-2" />
+              Xuất PDF
+            </Button>
             <Button
               onClick={resetTest}
               className="bg-gradient-primary hover:shadow-glow px-8 py-3"
