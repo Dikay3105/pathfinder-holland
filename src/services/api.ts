@@ -1,5 +1,5 @@
 // API Configuration - Replace these URLs with your actual API endpoints
-const API_BASE_URL = 'http://localhost:5000/api'; // Replace with your API base URL
+const API_BASE_URL = process.env.API_BASE_URL; // Replace with your API base URL
 
 const API_ENDPOINTS = {
   GET_QUESTIONS: `${API_BASE_URL}/questions`, // GET request to fetch all Holland questions
