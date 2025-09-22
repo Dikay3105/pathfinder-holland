@@ -40,12 +40,13 @@ export interface ResultResponse {
   success: boolean;
   message?: string;
   recommendedMajors?: Array<{
-    id: string;
+    _id: string;
     name: string;
     description: string;
     examBlocks: string[];
     hollandTypes: string[];
   }>;
+  recommendationText?: string;
 }
 
 // Mock data - Remove this section when connecting to real API

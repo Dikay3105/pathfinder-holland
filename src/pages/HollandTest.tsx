@@ -43,6 +43,7 @@ interface TestResult {
   selectedBlocks: string[];
   scores: ScoreInput[];
   apiResponse?: ResultResponse;
+  recommendationText?: string;
 }
 
 const HollandTest = () => {
@@ -193,7 +194,8 @@ const HollandTest = () => {
         compatibleMajors: apiResponse.recommendedMajors || [],
         selectedBlocks,
         scores,
-        apiResponse
+        apiResponse,
+        recommendationText: apiResponse.recommendationText
       };
 
       setTestResult(result);
@@ -232,9 +234,6 @@ const HollandTest = () => {
 
     const doc = new jsPDF();
     
-    // Add UTF-8 support for Vietnamese
-    doc.setFont('helvetica');
-    
     // Header
     doc.setFontSize(20);
     doc.text('KET QUA TEST HOLLAND', 105, 20, { align: 'center' });
@@ -243,80 +242,70 @@ const HollandTest = () => {
     
     // Personal Info
     doc.setFontSize(12);
-    doc.text(`Ho va ten: ${personalInfo.name}`, 20, 50);
-    doc.text(`Lop: ${personalInfo.class}`, 20, 60);
-    doc.text(`Nhom Holland: ${testResult.topThreeTypes.map(item => item.type).join('')}`, 20, 70);
+    doc.text('Ho va ten: ' + personalInfo.name, 20, 50);
+    doc.text('Lop: ' + personalInfo.class, 20, 60);
+    doc.text('Nhom Holland: ' + testResult.topThreeTypes.map(item => item.type).join(''), 20, 70);
     
-    // Holland Types
-    doc.setFontSize(14);
-    doc.text('TOP 3 NHOM HOLLAND CUA BAN:', 20, 90);
-    
-    let yPosition = 100;
-    testResult.topThreeTypes.forEach((item, index) => {
-      doc.setFontSize(12);
-      doc.text(`${index + 1}. ${hollandTypeDescriptions[item.type].name} (${item.score}/10)`, 25, yPosition);
-      // Split long description into multiple lines
-      const description = hollandTypeDescriptions[item.type].description;
-      const lines = doc.splitTextToSize(description, 150);
-      doc.setFontSize(10);
-      lines.forEach((line: string, lineIndex: number) => {
-        doc.text(line, 30, yPosition + 10 + (lineIndex * 5));
-      });
-      yPosition += 10 + (lines.length * 5) + 5;
-    });
-    
-    // Compatible Majors
-    yPosition += 10;
-    doc.setFontSize(14);
-    doc.text('NGANH HOC PHU HOP:', 20, yPosition);
-    yPosition += 10;
-    
-    if (testResult.compatibleMajors && testResult.compatibleMajors.length > 0) {
-      testResult.compatibleMajors.slice(0, 5).forEach((major, index) => {
-        doc.setFontSize(12);
-        doc.text(`${index + 1}. ${major.name}`, 25, yPosition);
-        if (major.description) {
-          const lines = doc.splitTextToSize(major.description, 150);
-          doc.setFontSize(10);
-          lines.forEach((line: string, lineIndex: number) => {
-            doc.text(line, 30, yPosition + 10 + (lineIndex * 5));
-          });
-          yPosition += 10 + (lines.length * 5) + 5;
-        } else {
-          yPosition += 10;
-        }
-      });
-    } else {
-      doc.setFontSize(10);
-      doc.text('Khong tim thay nganh hoc phu hop hoan toan.', 25, yPosition);
-      yPosition += 15;
-    }
-    
-    // Score Summary if available
-    if (testResult.scores && testResult.scores.length > 0) {
-      yPosition += 10;
+    // Result Text from API
+    if (testResult.recommendationText) {
       doc.setFontSize(14);
-      doc.text('BANG DIEM:', 20, yPosition);
-      yPosition += 10;
+      doc.text('KET QUA PHAN TICH:', 20, 90);
       
-      testResult.scores.forEach((score) => {
-        doc.setFontSize(10);
-        doc.text(`${score.subject}: Hien tai ${score.currentScore} - Muc tieu ${score.targetScore}`, 25, yPosition);
+      // Split recommendation text into multiple lines
+      const lines = doc.splitTextToSize(testResult.recommendationText, 170);
+      doc.setFontSize(12);
+      let yPosition = 105;
+      lines.forEach((line: string) => {
+        doc.text(line, 20, yPosition);
         yPosition += 8;
+      });
+      
+      // Compatible Majors
+      if (testResult.compatibleMajors && testResult.compatibleMajors.length > 0) {
+        yPosition += 15;
+        doc.setFontSize(14);
+        doc.text('NGANH HOC PHU HOP:', 20, yPosition);
+        yPosition += 10;
+        
+        testResult.compatibleMajors.slice(0, 8).forEach((major, index) => {
+          doc.setFontSize(11);
+          doc.text((index + 1) + '. ' + major.name, 25, yPosition);
+          yPosition += 8;
+          if (major.description) {
+            const descLines = doc.splitTextToSize('   ' + major.description, 150);
+            doc.setFontSize(9);
+            descLines.forEach((line: string) => {
+              doc.text(line, 30, yPosition);
+              yPosition += 6;
+            });
+          }
+          yPosition += 3;
+        });
+      }
+    } else {
+      // Fallback to old format if recommendationText is not available
+      doc.setFontSize(14);
+      doc.text('TOP 3 NHOM HOLLAND CUA BAN:', 20, 90);
+      
+      let yPosition = 100;
+      testResult.topThreeTypes.forEach((item, index) => {
+        doc.setFontSize(12);
+        doc.text((index + 1) + '. ' + hollandTypeDescriptions[item.type].name + ' (' + item.score + '/10)', 25, yPosition);
+        yPosition += 15;
       });
     }
     
     // Footer
     doc.setFontSize(8);
-    doc.text(`Ngay tao: ${new Date().toLocaleDateString('vi-VN')}`, 20, 280);
+    doc.text('Ngay tao: ' + new Date().toLocaleDateString('vi-VN'), 20, 280);
     
     // Save the PDF
-    const fileName = `KetQuaHollandTest_${personalInfo.name}_${personalInfo.class}_${new Date().getTime()}.pdf`;
+    const fileName = 'KetQuaHollandTest_' + personalInfo.name + '_' + personalInfo.class + '_' + new Date().getTime() + '.pdf';
     doc.save(fileName);
     
     toast({
       title: "Xuất PDF thành công!",
-      description: `Đã lưu file: ${fileName}`,
+      description: "Đã lưu file: " + fileName,
     });
   };
 
@@ -653,38 +642,58 @@ const HollandTest = () => {
           </div>
         </CardHeader>
         <CardContent className="p-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div>
+          {/* Recommendation Text from API - Priority display */}
+          {testResult?.recommendationText && (
+            <div className="mb-8">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5" />
-                Top 3 nhóm Holland của bạn
+                <Target className="w-5 h-5" />
+                Kết quả phân tích Holland
               </h3>
-              <div className="space-y-3">
-                {testResult?.topThreeTypes.map((item, index) => (
-                  <div key={item.type} className="flex items-center space-x-4 p-4 bg-muted rounded-lg">
-                    <div className="text-2xl font-bold text-primary">#{index + 1}</div>
-                    <div className="flex-1">
-                      <div className="font-semibold">
-                        {hollandTypeDescriptions[item.type].name}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {hollandTypeDescriptions[item.type].description}
-                      </div>
-                    </div>
-                    <Badge className={`bg-education-${hollandTypeDescriptions[item.type].color} text-white`}>
-                      {item.score}/10
-                    </Badge>
-                  </div>
-                ))}
+              <div className="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-all duration-300">
+                <div className="prose prose-sm max-w-none">
+                  <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                    {testResult.recommendationText}
+                  </p>
+                </div>
               </div>
             </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Show Holland types details only if no API recommendation text */}
+            {!testResult?.recommendationText && (
+              <div>
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5" />
+                  Top 3 nhóm Holland của bạn
+                </h3>
+                <div className="space-y-3">
+                  {testResult?.topThreeTypes.map((item, index) => (
+                    <div key={item.type} className="flex items-center space-x-4 p-4 bg-muted rounded-lg">
+                      <div className="text-2xl font-bold text-primary">#{index + 1}</div>
+                      <div className="flex-1">
+                        <div className="font-semibold">
+                          {hollandTypeDescriptions[item.type].name}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {hollandTypeDescriptions[item.type].description}
+                        </div>
+                      </div>
+                      <Badge className={`bg-education-${hollandTypeDescriptions[item.type].color} text-white`}>
+                        {item.score}/10
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div>
-              <h3 className="text-xl font-bold mb-4">Ngành học phù hợp</h3>
+              <h3 className="text-xl font-bold mb-4">Ngành học được đề xuất</h3>
               <div className="space-y-3">
                 {testResult?.compatibleMajors && testResult.compatibleMajors.length > 0 ? (
-                  testResult.compatibleMajors.slice(0, 5).map((major, index) => (
-                    <div key={major.id || index} className="p-4 bg-education-green/10 border border-education-green/20 rounded-lg">
+                  testResult.compatibleMajors.slice(0, 6).map((major, index) => (
+                    <div key={major._id || index} className="p-4 bg-education-green/10 border border-education-green/20 rounded-lg">
                       <h4 className="font-bold text-education-green">{major.name}</h4>
                       <p className="text-sm text-muted-foreground mt-1">{major.description}</p>
                       <div className="flex flex-wrap gap-1 mt-2">
