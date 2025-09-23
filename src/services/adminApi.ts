@@ -1,5 +1,5 @@
 // Admin API Configuration - Replace these URLs with your actual API endpoints
-const ADMIN_API_BASE_URL = 'http://localhost:3001/api/admin'; // Replace with your API base URL
+const ADMIN_API_BASE_URL = 'http://localhost:5000/api/admin'; // Replace with your API base URL
 
 const ADMIN_API_ENDPOINTS = {
   // Exam Blocks
@@ -137,10 +137,10 @@ export const adminApiService = {
   async getExamBlocks(): Promise<ExamBlock[]> {
     try {
       // TODO: Replace with actual API call
-      // const response = await fetch(ADMIN_API_ENDPOINTS.GET_EXAM_BLOCKS);
-      // return await response.json();
-      
-      return Promise.resolve(MOCK_EXAM_BLOCKS);
+      const response = await fetch(ADMIN_API_ENDPOINTS.GET_EXAM_BLOCKS);
+      return await response.json();
+
+      // return Promise.resolve(MOCK_EXAM_BLOCKS);
     } catch (error) {
       console.error('Error fetching exam blocks:', error);
       throw new Error('Không thể tải danh sách khối thi');
@@ -150,15 +150,15 @@ export const adminApiService = {
   async createExamBlock(examBlock: Omit<ExamBlock, '_id'>): Promise<ExamBlock> {
     try {
       // TODO: Replace with actual API call
-      // const response = await fetch(ADMIN_API_ENDPOINTS.CREATE_EXAM_BLOCK, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(examBlock),
-      // });
-      // return await response.json();
+      const response = await fetch(ADMIN_API_ENDPOINTS.CREATE_EXAM_BLOCK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(examBlock),
+      });
+      return await response.json();
 
-      const newBlock = { ...examBlock, _id: Date.now().toString() };
-      return Promise.resolve(newBlock);
+      // const newBlock = { ...examBlock, _id: Date.now().toString() };
+      // return Promise.resolve(newBlock);
     } catch (error) {
       console.error('Error creating exam block:', error);
       throw new Error('Không thể tạo khối thi mới');
@@ -168,14 +168,14 @@ export const adminApiService = {
   async updateExamBlock(id: string, examBlock: Partial<ExamBlock>): Promise<ExamBlock> {
     try {
       // TODO: Replace with actual API call
-      // const response = await fetch(ADMIN_API_ENDPOINTS.UPDATE_EXAM_BLOCK(id), {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(examBlock),
-      // });
-      // return await response.json();
+      const response = await fetch(ADMIN_API_ENDPOINTS.UPDATE_EXAM_BLOCK(id), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(examBlock),
+      });
+      return await response.json();
 
-      return Promise.resolve({ ...examBlock, _id: id } as ExamBlock);
+      // return Promise.resolve({ ...examBlock, _id: id } as ExamBlock);
     } catch (error) {
       console.error('Error updating exam block:', error);
       throw new Error('Không thể cập nhật khối thi');
@@ -185,9 +185,9 @@ export const adminApiService = {
   async deleteExamBlock(id: string): Promise<void> {
     try {
       // TODO: Replace with actual API call
-      // await fetch(ADMIN_API_ENDPOINTS.DELETE_EXAM_BLOCK(id), {
-      //   method: 'DELETE',
-      // });
+      await fetch(ADMIN_API_ENDPOINTS.DELETE_EXAM_BLOCK(id), {
+        method: 'DELETE',
+      });
 
       return Promise.resolve();
     } catch (error) {

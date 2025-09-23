@@ -261,49 +261,105 @@ export const testBlocks: TestBlock[] = [
   {
     id: "A00",
     name: "Khối A00 (Toán, Lý, Hóa)",
-    majors: majorsData.filter(major => major.examBlocks.includes("A00"))
+    majors: majorsData.filter(m => m.examBlocks.includes("A00"))
   },
   {
     id: "A01",
     name: "Khối A01 (Toán, Lý, Anh)",
-    majors: majorsData.filter(major => major.examBlocks.includes("A01"))
+    majors: majorsData.filter(m => m.examBlocks.includes("A01"))
   },
   {
     id: "B00",
     name: "Khối B00 (Toán, Hóa, Sinh)",
-    majors: majorsData.filter(major => major.examBlocks.includes("B00"))
+    majors: majorsData.filter(m => m.examBlocks.includes("B00"))
   },
   {
     id: "C00",
     name: "Khối C00 (Văn, Sử, Địa)",
-    majors: majorsData.filter(major => major.examBlocks.includes("C00"))
+    majors: majorsData.filter(m => m.examBlocks.includes("C00"))
+  },
+  {
+    id: "C01",
+    name: "Khối C01 (Văn, Toán, Lý)",
+    majors: majorsData.filter(m => m.examBlocks.includes("C01"))
+  },
+  {
+    id: "C03",
+    name: "Khối C03 (Văn, Toán, Sử)",
+    majors: majorsData.filter(m => m.examBlocks.includes("C03"))
+  },
+  {
+    id: "C08",
+    name: "Khối C08 (Văn, Hóa, Sinh)",
+    majors: majorsData.filter(m => m.examBlocks.includes("C08"))
+  },
+  {
+    id: "C14",
+    name: "Khối C14 (Văn, Toán, GDCD)",
+    majors: majorsData.filter(m => m.examBlocks.includes("C14"))
   },
   {
     id: "D01",
-    name: "Khối D01 (Văn, Toán, Anh)",
-    majors: majorsData.filter(major => major.examBlocks.includes("D01"))
+    name: "Khối D01 (Toán, Văn, Anh)",
+    majors: majorsData.filter(m => m.examBlocks.includes("D01"))
   },
   {
-    id: "D04",
-    name: "Khối D04 (Văn, Toán, Trung)",
-    majors: majorsData.filter(major => major.examBlocks.includes("D04"))
+    id: "D07",
+    name: "Khối D07 (Toán, Hóa, Anh)",
+    majors: majorsData.filter(m => m.examBlocks.includes("D07"))
   },
   {
-    id: "V00",
-    name: "Khối V00 (Toán, Lý, Vẽ)",
-    majors: majorsData.filter(major => major.examBlocks.includes("V00"))
+    id: "D08",
+    name: "Khối D08 (Toán, Sinh, Anh)",
+    majors: majorsData.filter(m => m.examBlocks.includes("D08"))
+  },
+  {
+    id: "D09",
+    name: "Khối D09 (Toán, Sử, Anh)",
+    majors: majorsData.filter(m => m.examBlocks.includes("D09"))
+  },
+  {
+    id: "D14",
+    name: "Khối D14 (Văn, Sử, Anh)",
+    majors: majorsData.filter(m => m.examBlocks.includes("D14"))
+  },
+  {
+    id: "D15",
+    name: "Khối D15 (Văn, Địa, Anh)",
+    majors: majorsData.filter(m => m.examBlocks.includes("D15"))
+  },
+  {
+    id: "D17",
+    name: "Khối D17 (Toán, Địa, Anh)",
+    majors: majorsData.filter(m => m.examBlocks.includes("D17"))
   },
   {
     id: "H00",
-    name: "Khối H00 (Văn, Sử, Vẽ)",
-    majors: majorsData.filter(major => major.examBlocks.includes("H00"))
+    name: "Khối H00 (Văn, Năng khiếu Vẽ, Hình họa)",
+    majors: majorsData.filter(m => m.examBlocks.includes("H00"))
   },
   {
     id: "H01",
-    name: "Khối H01 (Văn, Toán, Vẽ)",
-    majors: majorsData.filter(major => major.examBlocks.includes("H01"))
+    name: "Khối H01 (Toán, Văn, Năng khiếu Vẽ)",
+    majors: majorsData.filter(m => m.examBlocks.includes("H01"))
+  },
+  {
+    id: "R00",
+    name: "Khối R00 (Thanh nhạc 1, Thanh nhạc 2, Văn)",
+    majors: majorsData.filter(m => m.examBlocks.includes("R00"))
+  },
+  {
+    id: "V00",
+    name: "Khối V00 (Toán, Lý, Năng khiếu Vẽ)",
+    majors: majorsData.filter(m => m.examBlocks.includes("V00"))
+  },
+  {
+    id: "V01",
+    name: "Khối V01 (Toán, Văn, Năng khiếu Vẽ)",
+    majors: majorsData.filter(m => m.examBlocks.includes("V01"))
   }
 ];
+
 
 export interface HollandQuestion {
   id: number;

@@ -13,6 +13,8 @@ import jsPDF from 'jspdf';
 import schoolBackground from '@/assets/school-background.jpg';
 import schoolLogo from '@/assets/school-logo1.png';
 import { addDejavuFont } from "../../public/fonts/DejaVuSans"; // file chứa base64 font
+import html2pdf from "html2pdf.js";
+
 
 interface PersonalInfo {
   name: string;
@@ -48,6 +50,7 @@ interface TestResult {
 }
 
 const HollandTest = () => {
+  const pdfRef = useRef<HTMLDivElement>(null);
   const scrollDivRef = useRef(null);
   const [step, setStep] = useState(1);
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ name: '', class: '' });
@@ -388,6 +391,23 @@ const HollandTest = () => {
       // Auto-scroll to top after state update
 
     } else {
+      const hollandScores: HollandScores = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
+
+      Object.entries(testAnswers).forEach(([questionId, isAnswered]) => {
+        if (isAnswered) {
+          const question = questions.find(q => q.id === parseInt(questionId));
+          if (question) {
+            hollandScores[question.type]++;
+          }
+        }
+      });
+
+      // ✅ Kiểm tra: phải có ít nhất 3 nhóm có điểm > 0
+      const groupsWithScore = Object.values(hollandScores).filter(v => v > 0).length;
+      if (groupsWithScore < 3) {
+        alert("Bạn cần trả lời đủ để có ít nhất 3 nhóm Holland có điểm trước khi nộp bài.");
+        return; // dừng lại, không gửi API
+      }
       setStep(3);
     }
     setTimeout(() => {
@@ -634,6 +654,13 @@ const HollandTest = () => {
     </Card>
   );
 
+  const excludedSubjects = [
+    'Năng khiếu Vẽ',
+    'Năng khiếu Hình họa',
+    'Thanh nhạc 1',
+    'Thanh nhạc 2'
+  ];
+
   const renderScoreInputStep = () => (
     <Card className="w-full max-w-4xl mx-auto shadow-medium">
       <CardHeader className="text-center bg-gradient-success text-white rounded-t-lg">
@@ -647,39 +674,53 @@ const HollandTest = () => {
       </CardHeader>
       <CardContent className="p-8">
         <div className="space-y-6">
-          {scores.map((score, index) => (
-            <div key={score.subject} className="bg-muted rounded-lg p-6">
-              <h3 className="font-bold text-lg mb-4 text-center">{score.subject}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-base font-medium">Điểm hiện tại</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="10"
-                    step="0.1"
-                    value={score.currentScore || ''}
-                    onChange={(e) => handleScoreChange(index, 'currentScore', parseFloat(e.target.value) || 0)}
-                    placeholder="0.0"
-                    className="h-12 text-base text-center"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-base font-medium">Điểm mong muốn</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="10"
-                    step="0.1"
-                    value={score.targetScore || ''}
-                    onChange={(e) => handleScoreChange(index, 'targetScore', parseFloat(e.target.value) || 0)}
-                    placeholder="0.0"
-                    className="h-12 text-base text-center"
-                  />
+          {scores
+            .filter(score => !excludedSubjects.includes(score.subject))
+            .map((score, index) => (
+              <div key={score.subject} className="bg-muted rounded-lg p-6">
+                <h3 className="font-bold text-lg mb-4 text-center">{score.subject}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-base font-medium">Điểm hiện tại</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="10"
+                      step="0.1"
+                      value={score.currentScore ?? ''}
+                      onChange={e =>
+                        handleScoreChange(
+                          index,
+                          'currentScore',
+                          parseFloat(e.target.value) || 0
+                        )
+                      }
+                      placeholder="0.0"
+                      className="h-12 text-base text-center"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-base font-medium">Điểm mong muốn</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="10"
+                      step="0.1"
+                      value={score.targetScore ?? ''}
+                      onChange={e =>
+                        handleScoreChange(
+                          index,
+                          'targetScore',
+                          parseFloat(e.target.value) || 0
+                        )
+                      }
+                      placeholder="0.0"
+                      className="h-12 text-base text-center"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
 
         <div className="mt-8 flex justify-between items-center">
@@ -722,9 +763,24 @@ const HollandTest = () => {
     </Card>
   );
 
+  const exportPDF = () => {
+    console.log("Generating PDF...");
+    if (!pdfRef.current) return;
+
+    const options = {
+      margin: 0,
+      filename: `KetQuaHolland_${personalInfo.name}_${Date.now()}.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },   // scale cao để chữ/ảnh sắc nét
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+    };
+
+    html2pdf().set(options).from(pdfRef.current).save();
+  };
+
   const renderResultStep = () => (
-    <div className="w-full max-w-6xl mx-auto space-y-6">
-      <Card className="shadow-medium">
+    <div className="w-full max-w-6xl mx-auto space-y-6" >
+      <Card className="shadow-medium" ref={pdfRef}>
         <CardHeader className="text-center bg-gradient-success text-white rounded-t-lg">
           <CardTitle className="text-3xl font-bold flex items-center justify-center gap-3">
             <CheckCircle className="w-8 h-8" />
@@ -793,7 +849,7 @@ const HollandTest = () => {
               <div className="space-y-3">
                 {testResult?.compatibleMajors && testResult.compatibleMajors.length > 0 ? (
                   testResult.compatibleMajors.slice(0, 6).map((major, index) => (
-                    <div key={major._id || index} className="p-4 bg-education-green/10 border border-education-green/20 rounded-lg">
+                    <div key={major._id || index} className="card p-4 bg-education-green/10 border border-education-green/20 rounded-lg">
                       <h4 className="font-bold text-education-green">{major.name}</h4>
                       <p className="text-sm text-muted-foreground mt-1">{major.description}</p>
                       <div className="flex flex-wrap gap-1 mt-2">
@@ -847,24 +903,25 @@ const HollandTest = () => {
             </div>
           )}
 
-          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button
-              onClick={generatePDF}
-              variant="outline"
-              className="px-8 py-3 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-            >
-              <Download className="w-5 h-5 mr-2" />
-              Xuất PDF
-            </Button>
-            <Button
-              onClick={resetTest}
-              className="bg-gradient-primary hover:shadow-glow px-8 py-3"
-            >
-              Làm lại bài test
-            </Button>
-          </div>
+
         </CardContent>
       </Card>
+      <div className="no-print mt-8 flex flex-col sm:flex-row gap-4 justify-center items-center">
+        <Button
+          onClick={exportPDF}
+          variant="outline"
+          className="no-print px-8 py-3 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+        >
+          <Download className="w-5 h-5 mr-2" />
+          Xuất PDF
+        </Button>
+        <Button
+          onClick={resetTest}
+          className="no-print bg-gradient-primary hover:shadow-glow px-8 py-3"
+        >
+          Làm lại bài test
+        </Button>
+      </div>
     </div>
   );
 
@@ -889,12 +946,12 @@ const HollandTest = () => {
                 className="w-12 h-12 md:w-16 md:h-16 object-contain"
               />
               <div className="text-center md:text-left">
-                <h1 className="text-lg md:text-xl font-bold text-primary mb-1">
-                  TRƯỜNG THPT NGUYỄN HIỀN
-                </h1>
                 <p className="text-sm text-muted-foreground">
                   Sở Giáo dục và Đào tạo TP. Hồ Chí Minh
                 </p>
+                <h1 className="text-lg md:text-xl font-bold text-primary mb-1">
+                  TRƯỜNG THPT NGUYỄN HIỀN
+                </h1>
               </div>
             </div>
           </div>

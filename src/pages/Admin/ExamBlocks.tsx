@@ -6,28 +6,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogTrigger,
-  DialogFooter 
+  DialogFooter
 } from '@/components/ui/dialog';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
-import { 
-  ArrowLeft, 
-  Plus, 
-  Edit, 
-  Trash2, 
-  BookOpen 
+import {
+  ArrowLeft,
+  Plus,
+  Edit,
+  Trash2,
+  BookOpen
 } from 'lucide-react';
 import { adminApiService, ExamBlock } from '@/services/adminApi';
 import { useToast } from '@/hooks/use-toast';
@@ -255,17 +255,14 @@ const ExamBlocks = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Mã khối</TableHead>
-                  <TableHead>Tên khối thi</TableHead>
                   <TableHead>Môn thi</TableHead>
-                  <TableHead>Mô tả</TableHead>
                   <TableHead className="text-right">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {examBlocks.map((block) => (
                   <TableRow key={block._id}>
-                    <TableCell className="font-medium">{block.id}</TableCell>
-                    <TableCell>{block.name}</TableCell>
+                    <TableCell className="font-medium">{block.name}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {block.subjects.map((subject) => (
@@ -274,9 +271,6 @@ const ExamBlocks = () => {
                           </Badge>
                         ))}
                       </div>
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate">
-                      {block.description}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">
