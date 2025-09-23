@@ -19,6 +19,7 @@ import html2pdf from "html2pdf.js";
 interface PersonalInfo {
   name: string;
   class: string;
+  number: number;
 }
 
 interface HollandScores {
@@ -53,7 +54,7 @@ const HollandTest = () => {
   const pdfRef = useRef<HTMLDivElement>(null);
   const scrollDivRef = useRef(null);
   const [step, setStep] = useState(1);
-  const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ name: '', class: '' });
+  const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ name: '', class: '', number: 1 });
   const [testAnswers, setTestAnswers] = useState<TestAnswers>({});
   const [selectedBlocks, setSelectedBlocks] = useState<string[]>([]);
   const [scores, setScores] = useState<ScoreInput[]>([]);
@@ -453,28 +454,51 @@ const HollandTest = () => {
             <Input
               id="name"
               value={personalInfo.name}
-              onChange={(e) => setPersonalInfo(prev => ({ ...prev, name: e.target.value }))}
+              onChange={e =>
+                setPersonalInfo(prev => ({ ...prev, name: e.target.value }))
+              }
               placeholder="Nhập họ và tên của bạn"
               className="h-12 text-base"
               autoFocus
             />
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="class" className="text-base font-medium">Lớp</Label>
             <Input
               id="class"
               value={personalInfo.class}
-              onChange={(e) => setPersonalInfo(prev => ({ ...prev, class: e.target.value }))}
+              onChange={e =>
+                setPersonalInfo(prev => ({ ...prev, class: e.target.value }))
+              }
               placeholder="Nhập lớp của bạn (VD: 12A1)"
               className="h-12 text-base"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handlePersonalInfoNext();
-                }
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="number" className="text-base font-medium">Số báo danh</Label>
+            <Input
+              id="number"
+              type="number"                       // 🔑 chỉ cho nhập số
+              min={0}                              // 🔑 không âm
+              step={1}                              // 🔑 chỉ nguyên
+              value={personalInfo.number ?? ''}     // vẫn hiển thị rỗng nếu undefined
+              onChange={e =>
+                setPersonalInfo(prev => ({
+                  ...prev,
+                  number: Math.max(0, parseInt(e.target.value || '0', 10)) // ép nguyên & không âm
+                }))
+              }
+              placeholder="Nhập số báo danh của bạn"
+              className="h-12 text-base"
+              onKeyDown={e => {
+                if (e.key === 'Enter') handlePersonalInfoNext();
               }}
             />
           </div>
         </div>
+
         {apiError && (
           <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
             <p className="text-destructive text-sm">{apiError}</p>
@@ -787,7 +811,7 @@ const HollandTest = () => {
             Kết quả Test Holland
           </CardTitle>
           <p className="text-white/90">
-            Chào {personalInfo.name} - Lớp {personalInfo.class}
+            Chào {personalInfo.name} - Lớp {personalInfo.class} - Số {personalInfo.number}
           </p>
           <div className="text-white/80 text-center mt-2">
             Kết quả: Bạn thuộc nhóm <span className="font-bold text-white">
