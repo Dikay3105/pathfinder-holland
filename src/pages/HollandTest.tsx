@@ -130,6 +130,12 @@ const HollandTest = () => {
 
 
   const handlePersonalInfoNext = () => {
+    if (personalInfo.name.toLocaleLowerCase() === "admin" && personalInfo.class.toLocaleLowerCase() === "admin") {
+
+      navigate('/admin');
+      return;
+    }
+    
     if (!personalInfo.name.trim() || !personalInfo.class.trim() || !personalInfo.number || personalInfo.number <= 0) {
       toast({
         title: "Thông tin chưa đầy đủ",
@@ -148,11 +154,7 @@ const HollandTest = () => {
       return;
     }
 
-    if (personalInfo.name.toLocaleLowerCase() === "admin" && personalInfo.class.toLocaleLowerCase() === "admin") {
-
-      navigate('/admin');
-      return;
-    }
+    
 
     setStep(2);
   };
