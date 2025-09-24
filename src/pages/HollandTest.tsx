@@ -71,6 +71,24 @@ const HollandTest = () => {
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
   const [apiError, setApiError] = useState<string>('');
 
+  const loadQuestions = async () => {
+    setIsLoadingQuestions(true);
+    setApiError('');
+    try {
+      const fetchedQuestions = await apiService.getQuestions();
+      setQuestions(fetchedQuestions);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Có lỗi xảy ra khi tải câu hỏi');
+      toast({
+        title: "Lỗi tải dữ liệu",
+        description: error instanceof Error ? error.message : 'Có lỗi xảy ra khi tải câu hỏi',
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  };
+
   // Load questions when component mounts
   useEffect(() => {
     loadQuestions();
@@ -103,28 +121,12 @@ const HollandTest = () => {
     setStep(5); // sang bước hiển thị kết quả
   }, [student]);
 
-  // Nếu người dùng truy cập thẳng /result mà không có state
-  if (!student) {
-    return <p>Không tìm thấy dữ liệu để xuất PDF</p>;
-  }
+  // // Nếu người dùng truy cập thẳng /result mà không có state
+  // if (!student) {
+  //   return <p>Không tìm thấy dữ liệu để xuất PDF</p>;
+  // }
 
-  const loadQuestions = async () => {
-    setIsLoadingQuestions(true);
-    setApiError('');
-    try {
-      const fetchedQuestions = await apiService.getQuestions();
-      setQuestions(fetchedQuestions);
-    } catch (error) {
-      setApiError(error instanceof Error ? error.message : 'Có lỗi xảy ra khi tải câu hỏi');
-      toast({
-        title: "Lỗi tải dữ liệu",
-        description: error instanceof Error ? error.message : 'Có lỗi xảy ra khi tải câu hỏi',
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoadingQuestions(false);
-    }
-  };
+
 
   const handlePersonalInfoNext = () => {
     if (!personalInfo.name.trim() || !personalInfo.class.trim() || !personalInfo.number || personalInfo.number <= 0) {

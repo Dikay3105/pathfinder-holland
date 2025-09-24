@@ -1,5 +1,5 @@
 // Admin API Configuration - Replace these URLs with your actual API endpoints
-const ADMIN_API_BASE_URL = 'http://localhost:5000/api'; // Replace with your API base URL
+const ADMIN_API_BASE_URL = import.meta.env.VITE_API_BASE_URL; // Replace with your API base URL
 
 const ADMIN_API_ENDPOINTS = {
   // Exam Blocks
