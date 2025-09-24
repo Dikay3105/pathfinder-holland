@@ -70,6 +70,7 @@ const HollandTest = () => {
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
   const [apiError, setApiError] = useState<string>('');
+  const navigate = useNavigate();
 
   const loadQuestions = async () => {
     setIsLoadingQuestions(true);
@@ -147,8 +148,8 @@ const HollandTest = () => {
       return;
     }
 
-    if (personalInfo.name === "admin" && personalInfo.class === "admin") {
-      const navigate = useNavigate();
+    if (personalInfo.name.toLocaleLowerCase() === "admin" && personalInfo.class === "admin") {
+
       navigate('/admin');
       return;
     }
