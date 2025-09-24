@@ -59,7 +59,7 @@ const HollandTest = () => {
   const pdfRef = useRef<HTMLDivElement>(null);
   const scrollDivRef = useRef(null);
   const [step, setStep] = useState(1);
-  const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ name: '', class: '', number: 1 });
+  const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ name: '', class: '', number: '' });
   const [testAnswers, setTestAnswers] = useState<TestAnswers>({});
   const [selectedBlocks, setSelectedBlocks] = useState<string[]>([]);
   const [scores, setScores] = useState<ScoreInput[]>([]);
@@ -133,7 +133,7 @@ const HollandTest = () => {
     if (!personalInfo.name.trim() || !personalInfo.class.trim() || !personalInfo.number || personalInfo.number <= 0) {
       toast({
         title: "Thông tin chưa đầy đủ",
-        description: "Vui lòng điền đầy đủ họ tên, lớp và số báo danh.",
+        description: "Vui lòng điền đầy đủ họ tên, lớp và danh số.",
         variant: "destructive"
       });
       return;
@@ -148,7 +148,7 @@ const HollandTest = () => {
       return;
     }
 
-    if (personalInfo.name.toLocaleLowerCase() === "admin" && personalInfo.class === "admin") {
+    if (personalInfo.name.toLocaleLowerCase() === "admin" && personalInfo.class.toLocaleLowerCase() === "admin") {
 
       navigate('/admin');
       return;
@@ -524,20 +524,19 @@ const HollandTest = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="number" className="text-base font-medium">Số báo danh</Label>
+            <Label htmlFor="number" className="text-base font-medium">Danh số</Label>
             <Input
               id="number"
-              type="number"                       // 🔑 chỉ cho nhập số
-              min={0}                              // 🔑 không âm
-              step={1}                              // 🔑 chỉ nguyên
+              // 🔑 chỉ nguyên
               value={personalInfo.number ?? ''}     // vẫn hiển thị rỗng nếu undefined
-              onChange={e =>
+              onChange={e => {
                 setPersonalInfo(prev => ({
                   ...prev,
                   number: Math.max(0, parseInt(e.target.value || '0', 10)) // ép nguyên & không âm
                 }))
               }
-              placeholder="Nhập số báo danh của bạn"
+              }
+              placeholder="Nhập danh số của bạn"
               className="h-12 text-base"
               onKeyDown={e => {
                 if (e.key === 'Enter') handlePersonalInfoNext();
@@ -726,10 +725,7 @@ const HollandTest = () => {
   );
 
   const excludedSubjects = [
-    'Năng khiếu Vẽ',
-    'Năng khiếu Hình họa',
-    'Thanh nhạc 1',
-    'Thanh nhạc 2'
+
   ];
 
   const renderScoreInputStep = () => (
@@ -754,18 +750,16 @@ const HollandTest = () => {
                   <div className="space-y-2">
                     <Label className="text-base font-medium">Điểm hiện tại</Label>
                     <Input
-                      type="number"
                       min="0"
                       max="10"
                       step="0.1"
                       value={score.currentScore ?? ''}
-                      onChange={e =>
-                        handleScoreChange(
-                          index,
-                          'currentScore',
-                          parseFloat(e.target.value) || 0
-                        )
-                      }
+                      onChange={e => {
+                        let value = parseFloat(e.target.value);
+                        if (value > 10) value = 10;        // chặn >10
+                        if (value < 0) value = 0;          // chặn <0
+                        handleScoreChange(index, 'currentScore', value || 0);
+                      }}
                       placeholder="0.0"
                       className="h-12 text-base text-center"
                     />
@@ -773,18 +767,16 @@ const HollandTest = () => {
                   <div className="space-y-2">
                     <Label className="text-base font-medium">Điểm mong muốn</Label>
                     <Input
-                      type="number"
                       min="0"
                       max="10"
                       step="0.1"
                       value={score.targetScore ?? ''}
-                      onChange={e =>
-                        handleScoreChange(
-                          index,
-                          'targetScore',
-                          parseFloat(e.target.value) || 0
-                        )
-                      }
+                      onChange={e => {
+                        let value = parseFloat(e.target.value);
+                        if (value > 10) value = 10;
+                        if (value < 0) value = 0;
+                        handleScoreChange(index, 'targetScore', value || 0);
+                      }}
                       placeholder="0.0"
                       className="h-12 text-base text-center"
                     />
