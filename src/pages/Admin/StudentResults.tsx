@@ -24,8 +24,29 @@ import {
 } from 'lucide-react';
 import { adminApiService, StudentResult, SearchFilters } from '@/services/adminApi';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"; // shadcn/ui
+import { useNavigate } from 'react-router-dom';
+
 
 const StudentResults = () => {
+  const [openDetail, setOpenDetail] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+
+  const handleOpenDetail = (student: any) => {
+    setSelectedStudent(student);
+    setOpenDetail(true);
+  };
+
+  const handleCloseDetail = () => {
+    setOpenDetail(false);
+    setSelectedStudent(null);
+  };
   const [results, setResults] = useState<StudentResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -85,29 +106,10 @@ const StudentResults = () => {
       setSearchLoading(false);
     }
   };
+  const navigate = useNavigate();
 
-  const handleDownloadPDF = async (studentResult: StudentResult) => {
-    try {
-      const pdfUrl = await adminApiService.getStudentResultPDF(studentResult._id);
-
-      // Mock PDF download - replace with actual implementation
-      toast({
-        title: 'Tải PDF',
-        description: `Đang tải PDF kết quả của ${studentResult.studentName}`
-      });
-
-      // In real implementation, you would:
-      // const link = document.createElement('a');
-      // link.href = pdfUrl;
-      // link.download = `ket-qua-${studentResult.studentNumber}-${studentResult.studentName}.pdf`;
-      // link.click();
-    } catch (error) {
-      toast({
-        title: 'Lỗi',
-        description: 'Không thể tải PDF',
-        variant: 'destructive'
-      });
-    }
+  const handleDownloadPDF = (studentResult: StudentResult) => {
+    navigate('/', { state: { student: studentResult } });
   };
 
   const formatDate = (dateString: string) => {
@@ -259,7 +261,7 @@ const StudentResults = () => {
                   <TableHead>Ngày test</TableHead>
                   <TableHead>Top Holland</TableHead>
                   <TableHead>Ngành đề xuất</TableHead>
-                  <TableHead className="text-right">PDF</TableHead>
+                  <TableHead>Tools</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -310,6 +312,13 @@ const StudentResults = () => {
                           <Download className="h-4 w-4 mr-1" />
                           <FileText className="h-4 w-4" />
                         </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleOpenDetail(result)}
+                        >
+                          Xem chi tiết
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -325,6 +334,57 @@ const StudentResults = () => {
             )}
           </CardContent>
         </Card>
+        <Dialog open={openDetail} onOpenChange={setOpenDetail}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Thông tin chi tiết</DialogTitle>
+              <DialogDescription>
+                {selectedStudent?.name} - Lớp {selectedStudent?.class}
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedStudent && (
+              <div className="space-y-3 text-sm">
+                <p><strong>Số báo danh:</strong> {selectedStudent.number}</p>
+                <p><strong>Ngày test:</strong> {formatDate(selectedStudent.createdAt)}</p>
+
+                <div>
+                  <strong>Điểm Holland:</strong>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {Object.entries(selectedStudent.hollandScores).map(([t, s]) => (
+                      <Badge key={t} variant="outline" className="text-xs">
+                        {t}: {s as number}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <strong>Ngành đề xuất:</strong>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {selectedStudent.recommendedMajors.map((m: any) => (
+                      <Badge key={m._id} variant="secondary" className="text-xs">
+                        {m.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <strong>Điểm hiện tại / mong muốn:</strong>
+                  <ul className="list-disc ml-5 mt-1">
+                    {selectedStudent.scores.map((sc: any) => (
+                      <li key={sc._id}>
+                        {sc.subject}: {sc.currentScore} → {sc.targetScore}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
       </main>
     </div>
   );

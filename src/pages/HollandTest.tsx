@@ -14,7 +14,7 @@ import schoolBackground from '@/assets/school-background.jpg';
 import schoolLogo from '@/assets/school-logo1.png';
 import { addDejavuFont } from "../../public/fonts/DejaVuSans"; // file chứa base64 font
 import html2pdf from "html2pdf.js";
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 
 interface PersonalInfo {
@@ -49,29 +49,12 @@ interface TestResult {
   scores: ScoreInput[];
   apiResponse?: ResultResponse;
   recommendationText?: string;
+  message?: string;
 }
 
 const HollandTest = () => {
-  // const location = useLocation();
-  // const student = location.state?.student; // dữ liệu đã truyền
-
-  // if (student) {
-  //   const sortedTypes = Object.entries(hollandScores)
-  //       .sort(([, a], [, b]) => b - a)
-  //       .slice(0, 3)
-  //       .map(([type, score]) => ({ type: type as keyof HollandScores, score }));
-  //     const result: TestResult = {
-  //         topThreeTypes: sortedTypes,
-  //         compatibleMajors: apiResponse.recommendedMajors || [],
-  //         selectedBlocks,
-  //         scores,
-  //         apiResponse,
-  //         recommendationText: apiResponse.recommendationText
-  //       };
-
-  //       setTestResult(result);
-  //       setStep(5);
-  // }
+  const location = useLocation();
+  const student = location.state?.student; // dữ liệu đã truyền
 
   const pdfRef = useRef<HTMLDivElement>(null);
   const scrollDivRef = useRef(null);
@@ -92,6 +75,38 @@ const HollandTest = () => {
   useEffect(() => {
     loadQuestions();
   }, []);
+
+  useEffect(() => {
+    if (!student) return;
+
+    // sắp xếp Holland score để lấy top 3
+    const sortedTypes = Object.entries(student.hollandScores)
+      .sort(([, a], [, b]) => (b as number) - (a as number))
+      .slice(0, 3)
+      .map(([type, score]) => ({ type: type as keyof HollandScores, score: score as number }));
+
+    const result: TestResult = {
+      topThreeTypes: sortedTypes,
+      compatibleMajors: student.recommendedMajors || [],
+      selectedBlocks: student.selectedBlocks || [],
+      scores: student.scores || [],
+      apiResponse: student,                 // dùng luôn student làm apiResponse
+      recommendationText: "",               // nếu muốn có text riêng thì set ở đây
+    };
+
+    setPersonalInfo({
+      name: student.name,
+      class: student.class,
+      number: student.number,
+    });
+    setTestResult(result);
+    setStep(5); // sang bước hiển thị kết quả
+  }, [student]);
+
+  // Nếu người dùng truy cập thẳng /result mà không có state
+  if (!student) {
+    return <p>Không tìm thấy dữ liệu để xuất PDF</p>;
+  }
 
   const loadQuestions = async () => {
     setIsLoadingQuestions(true);
@@ -127,6 +142,12 @@ const HollandTest = () => {
         description: "Vui lòng đợi tải câu hỏi hoàn tất.",
         variant: "destructive"
       });
+      return;
+    }
+
+    if (personalInfo.name === "admin" && personalInfo.class === "admin") {
+      const navigate = useNavigate();
+      navigate('/admin');
       return;
     }
 
@@ -231,7 +252,8 @@ const HollandTest = () => {
         selectedBlocks,
         scores,
         apiResponse,
-        recommendationText: apiResponse.recommendationText
+        recommendationText: apiResponse.recommendationText,
+        message: apiResponse.message
       };
 
       setTestResult(result);
@@ -817,7 +839,7 @@ const HollandTest = () => {
       margin: 0,
       filename: `KetQuaHolland_${personalInfo.name}_${Date.now()}.pdf`,
       image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },   // scale cao để chữ/ảnh sắc nét
+      html2canvas: { scale: 2, useCORS: true, scrollY: 0 },   // scale cao để chữ/ảnh sắc nét
       jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
     };
 
@@ -910,7 +932,7 @@ const HollandTest = () => {
                 ) : (
                   <div className="p-4 bg-education-orange/10 border border-education-orange/20 rounded-lg">
                     <p className="text-education-orange">
-                      {testResult?.apiResponse?.recommendedMajors ?
+                      {testResult?.compatibleMajors ?
                         "Không tìm thấy ngành học phù hợp hoàn toàn với kết quả Holland và khối thi đã chọn. Hãy tham khảo thêm ý kiến từ thầy cô hướng nghiệp." : testResult?.apiResponse?.message}
                     </p>
                   </div>
@@ -987,7 +1009,7 @@ const HollandTest = () => {
           <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-4">
             <div className="flex flex-col md:flex-row items-center justify-center gap-3">
               <img
-                // src={schoolLogo}
+                src={schoolLogo}
                 alt="Logo trường THPT Nguyễn Hiền"
                 className="w-12 h-12 md:w-16 md:h-16 object-contain"
               />
@@ -996,8 +1018,7 @@ const HollandTest = () => {
                   Sở Giáo dục và Đào tạo TP. Hồ Chí Minh
                 </p>
                 <h1 className="text-lg md:text-xl font-bold text-primary mb-1">
-                  {/* TRƯỜNG THPT NGUYỄN HIỀN */}
-                  è
+                  TRƯỜNG THPT NGUYỄN HIỀN
                 </h1>
               </div>
             </div>
