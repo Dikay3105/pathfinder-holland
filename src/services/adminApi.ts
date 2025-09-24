@@ -1,5 +1,5 @@
 // Admin API Configuration - Replace these URLs with your actual API endpoints
-const ADMIN_API_BASE_URL = 'http://localhost:5000/api/admin'; // Replace with your API base URL
+const ADMIN_API_BASE_URL = 'http://localhost:5000/api'; // Replace with your API base URL
 
 const ADMIN_API_ENDPOINTS = {
   // Exam Blocks
@@ -21,9 +21,9 @@ const ADMIN_API_ENDPOINTS = {
   DELETE_MAJOR: (id: string) => `${ADMIN_API_BASE_URL}/majors/${id}`,
 
   // Student Results
-  GET_STUDENT_RESULTS: `${ADMIN_API_BASE_URL}/student-results`,
+  GET_STUDENT_RESULTS: `${ADMIN_API_BASE_URL}/students`,
   GET_STUDENT_RESULT_PDF: (id: string) => `${ADMIN_API_BASE_URL}/student-results/${id}/pdf`,
-  SEARCH_STUDENT_RESULTS: `${ADMIN_API_BASE_URL}/student-results/search`,
+  SEARCH_STUDENT_RESULTS: `${ADMIN_API_BASE_URL}/students/search`,
 };
 
 // Types for Admin API
@@ -54,10 +54,10 @@ export interface Major {
 
 export interface StudentResult {
   _id: string;
-  studentName: string;
-  studentClass: string;
-  studentNumber: string;
-  testDate: string;
+  name: string;
+  class: string;
+  number: string;
+  createdAt: string;
   hollandScores: {
     R: number;
     I: number;
@@ -283,13 +283,25 @@ export const adminApiService = {
   // Student Results
   async getStudentResults(): Promise<StudentResult[]> {
     try {
-      // TODO: Replace with actual API call
-      return Promise.resolve(MOCK_STUDENT_RESULTS);
+      const res = await fetch(ADMIN_API_ENDPOINTS.GET_STUDENT_RESULTS, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      const data: StudentResult[] = await res.json();
+      return data;
     } catch (error) {
       console.error('Error fetching student results:', error);
       throw new Error('Không thể tải danh sách kết quả');
     }
-  },
+  }
+  ,
 
   async searchStudentResults(filters: SearchFilters): Promise<{
     results: StudentResult[];
@@ -298,35 +310,33 @@ export const adminApiService = {
     totalPages: number;
   }> {
     try {
-      // TODO: Replace with actual API call
-      // const queryString = new URLSearchParams(filters as any).toString();
-      // const response = await fetch(`${ADMIN_API_ENDPOINTS.SEARCH_STUDENT_RESULTS}?${queryString}`);
-      // return await response.json();
+      // Tạo query string từ filters
+      const queryString = new URLSearchParams({
+        studentName: filters.studentName ?? '',
+        studentClass: filters.studentClass ?? '',
+        studentNumber: filters.studentNumber ?? '',
+        page: String(filters.page ?? 1),
+        limit: String(filters.limit ?? 10),
+      }).toString();
 
-      const filteredResults = MOCK_STUDENT_RESULTS.filter(result => {
-        if (filters.studentName && !result.studentName.toLowerCase().includes(filters.studentName.toLowerCase())) {
-          return false;
-        }
-        if (filters.studentClass && !result.studentClass.toLowerCase().includes(filters.studentClass.toLowerCase())) {
-          return false;
-        }
-        if (filters.studentNumber && !result.studentNumber.toLowerCase().includes(filters.studentNumber.toLowerCase())) {
-          return false;
-        }
-        return true;
+      const res = await fetch(ADMIN_API_ENDPOINTS.SEARCH_STUDENT_RESULTS + `?${queryString}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
       });
 
-      return Promise.resolve({
-        results: filteredResults,
-        total: filteredResults.length,
-        page: filters.page || 1,
-        totalPages: Math.ceil(filteredResults.length / (filters.limit || 10))
-      });
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+      return (await res.json()) as {
+        results: StudentResult[];
+        total: number;
+        page: number;
+        totalPages: number;
+      };
     } catch (error) {
       console.error('Error searching student results:', error);
       throw new Error('Không thể tìm kiếm kết quả');
     }
-  },
+  }
+  ,
 
   async getStudentResultPDF(id: string): Promise<string> {
     try {

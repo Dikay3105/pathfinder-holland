@@ -14,6 +14,7 @@ import schoolBackground from '@/assets/school-background.jpg';
 import schoolLogo from '@/assets/school-logo1.png';
 import { addDejavuFont } from "../../public/fonts/DejaVuSans"; // file chứa base64 font
 import html2pdf from "html2pdf.js";
+import { useLocation } from 'react-router-dom';
 
 
 interface PersonalInfo {
@@ -51,6 +52,27 @@ interface TestResult {
 }
 
 const HollandTest = () => {
+  // const location = useLocation();
+  // const student = location.state?.student; // dữ liệu đã truyền
+
+  // if (student) {
+  //   const sortedTypes = Object.entries(hollandScores)
+  //       .sort(([, a], [, b]) => b - a)
+  //       .slice(0, 3)
+  //       .map(([type, score]) => ({ type: type as keyof HollandScores, score }));
+  //     const result: TestResult = {
+  //         topThreeTypes: sortedTypes,
+  //         compatibleMajors: apiResponse.recommendedMajors || [],
+  //         selectedBlocks,
+  //         scores,
+  //         apiResponse,
+  //         recommendationText: apiResponse.recommendationText
+  //       };
+
+  //       setTestResult(result);
+  //       setStep(5);
+  // }
+
   const pdfRef = useRef<HTMLDivElement>(null);
   const scrollDivRef = useRef(null);
   const [step, setStep] = useState(1);
@@ -90,10 +112,10 @@ const HollandTest = () => {
   };
 
   const handlePersonalInfoNext = () => {
-    if (!personalInfo.name.trim() || !personalInfo.class.trim()) {
+    if (!personalInfo.name.trim() || !personalInfo.class.trim() || !personalInfo.number || personalInfo.number <= 0) {
       toast({
         title: "Thông tin chưa đầy đủ",
-        description: "Vui lòng điền đầy đủ họ tên và lớp.",
+        description: "Vui lòng điền đầy đủ họ tên, lớp và số báo danh.",
         variant: "destructive"
       });
       return;
@@ -965,7 +987,7 @@ const HollandTest = () => {
           <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-4">
             <div className="flex flex-col md:flex-row items-center justify-center gap-3">
               <img
-                src={schoolLogo}
+                // src={schoolLogo}
                 alt="Logo trường THPT Nguyễn Hiền"
                 className="w-12 h-12 md:w-16 md:h-16 object-contain"
               />
@@ -974,7 +996,8 @@ const HollandTest = () => {
                   Sở Giáo dục và Đào tạo TP. Hồ Chí Minh
                 </p>
                 <h1 className="text-lg md:text-xl font-bold text-primary mb-1">
-                  TRƯỜNG THPT NGUYỄN HIỀN
+                  {/* TRƯỜNG THPT NGUYỄN HIỀN */}
+                  è
                 </h1>
               </div>
             </div>

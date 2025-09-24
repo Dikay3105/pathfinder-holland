@@ -5,18 +5,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
-import { 
-  ArrowLeft, 
-  Search, 
-  FileText, 
+import {
+  ArrowLeft,
+  Search,
+  FileText,
   Download,
   BarChart3,
   Calendar,
@@ -89,13 +89,13 @@ const StudentResults = () => {
   const handleDownloadPDF = async (studentResult: StudentResult) => {
     try {
       const pdfUrl = await adminApiService.getStudentResultPDF(studentResult._id);
-      
+
       // Mock PDF download - replace with actual implementation
       toast({
         title: 'Tải PDF',
         description: `Đang tải PDF kết quả của ${studentResult.studentName}`
       });
-      
+
       // In real implementation, you would:
       // const link = document.createElement('a');
       // link.href = pdfUrl;
@@ -116,7 +116,7 @@ const StudentResults = () => {
 
   const getTopHollandTypes = (scores: any) => {
     return Object.entries(scores)
-      .sort(([,a], [,b]) => (b as number) - (a as number))
+      .sort(([, a], [, b]) => (b as number) - (a as number))
       .slice(0, 3)
       .map(([type, score]) => ({ type, score }));
   };
@@ -190,7 +190,7 @@ const StudentResults = () => {
                   id="studentNumber"
                   value={searchFilters.studentNumber}
                   onChange={(e) => setSearchFilters(prev => ({ ...prev, studentNumber: e.target.value }))}
-                  placeholder="VD: SBD001"
+                  placeholder="VD: 1, 2, 3,..."
                 />
               </div>
               <div>
@@ -217,8 +217,8 @@ const StudentResults = () => {
                 <Search className="mr-2 h-4 w-4" />
                 {searchLoading ? 'Đang tìm...' : 'Tìm kiếm'}
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
                   setSearchFilters({
                     studentName: '',
@@ -264,16 +264,18 @@ const StudentResults = () => {
               </TableHeader>
               <TableBody>
                 {results.map((result) => {
-                  const topTypes = getTopHollandTypes(result.hollandScores);
-                  return (
+                  const topTypes = Object.entries(result.hollandScores).map(([type, score]) => ({
+                    type,
+                    score,
+                  })); return (
                     <TableRow key={result._id}>
-                      <TableCell className="font-medium">{result.studentName}</TableCell>
-                      <TableCell>{result.studentClass}</TableCell>
-                      <TableCell>{result.studentNumber}</TableCell>
+                      <TableCell className="font-medium">{result.name}</TableCell>
+                      <TableCell>{result.class}</TableCell>
+                      <TableCell>{result.number}</TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-1">
                           <Calendar className="h-3 w-3" />
-                          <span>{formatDate(result.testDate)}</span>
+                          <span>{formatDate(result.createdAt)}</span>
                         </div>
                       </TableCell>
                       <TableCell>
