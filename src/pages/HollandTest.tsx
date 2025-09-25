@@ -96,7 +96,10 @@ const HollandTest = () => {
   }, []);
 
   useEffect(() => {
-    if (!student) return;
+    if (!student) {
+
+      setStep(1); return;
+    }
 
     // ---- 1️⃣ Sắp xếp giảm dần ----
     const sorted = Object.entries(student.hollandScores || {})
