@@ -98,19 +98,52 @@ const HollandTest = () => {
   useEffect(() => {
     if (!student) return;
 
-    // sắp xếp Holland score để lấy top 3
-    const sortedTypes = Object.entries(student.hollandScores)
-      .sort(([, a], [, b]) => (b as number) - (a as number))
-      .slice(0, 3)
-      .map(([type, score]) => ({ type: type as keyof HollandScores, score: score as number }));
+    // ---- 1️⃣ Sắp xếp giảm dần ----
+    const sorted = Object.entries(student.hollandScores || {})
+      .map(([k, v]) => [k as keyof HollandScores, Number(v)])
+      .sort((a, b) => b[1] - a[1]); // ví dụ [['S',2], ['R',1], ['I',1], ...]
 
+    // ---- 2️⃣ Gom thành các bucket theo điểm ----
+    const buckets: { score: number; types: string[] }[] = [];
+    for (let i = 0; i < sorted.length;) {
+      const score = sorted[i][1];
+      const types: string[] = [];
+      while (i < sorted.length && sorted[i][1] === score) {
+        types.push(sorted[i][0]);
+        i++;
+      }
+      buckets.push({ score, types });
+    }
+
+    // ---- 3️⃣ Áp dụng quy tắc BE ----
+    let topGroups: { type: keyof HollandScores; score: number }[] = [];
+    if (buckets.length > 0) {
+      const maxBucket = buckets[0];
+      // Nếu bucket đầu >=4 nhóm (hoặc tất cả 6 nhóm bằng nhau) => rỗng
+      if (maxBucket.types.length >= 4 || (buckets.length === 1 && maxBucket.types.length === 6)) {
+        topGroups = [];
+      } else {
+        const included: { type: keyof HollandScores; score: number }[] = [];
+        for (let b of buckets) {
+          // chỉ thêm trọn bucket nếu sau khi thêm vẫn <= 3 nhóm
+          if (included.length + b.types.length <= 3) {
+            b.types.forEach(t => included.push({ type: t as keyof HollandScores, score: b.score }));
+          } else {
+            break; // nếu vượt quá 3 thì dừng, không thêm một phần bucket
+          }
+        }
+        topGroups = included;
+      }
+    }
+
+    // ---- 4️⃣ Gán vào state ----
     const result: TestResult = {
-      topThreeTypes: sortedTypes,
+      topThreeTypes: topGroups,                          // chính là topGroups đã tính
       compatibleMajors: student.recommendedMajors || [],
       selectedBlocks: student.selectedBlocks || [],
       scores: student.scores || [],
-      apiResponse: student,                 // dùng luôn student làm apiResponse
-      recommendationText: "",               // nếu muốn có text riêng thì set ở đây
+      apiResponse: student,
+      recommendationText: student.recommendationText || "",
     };
 
     setPersonalInfo({
@@ -119,8 +152,9 @@ const HollandTest = () => {
       number: student.number,
     });
     setTestResult(result);
-    setStep(5); // sang bước hiển thị kết quả
+    setStep(5);
   }, [student]);
+
 
   // // Nếu người dùng truy cập thẳng /result mà không có state
   // if (!student) {
@@ -221,8 +255,8 @@ const HollandTest = () => {
     setApiError('');
 
     try {
+      // 1️⃣ Tính điểm Holland để gửi API (vẫn cần để lưu DB)
       const hollandScores: HollandScores = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
-
       Object.entries(testAnswers).forEach(([questionId, isAnswered]) => {
         if (isAnswered) {
           const question = questions.find(q => q.id === parseInt(questionId));
@@ -232,12 +266,7 @@ const HollandTest = () => {
         }
       });
 
-      const sortedTypes = Object.entries(hollandScores)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 3)
-        .map(([type, score]) => ({ type: type as keyof HollandScores, score }));
-
-      // Prepare data for API submission
+      // 2️⃣ Chuẩn bị dữ liệu gửi API
       const submitData: SubmitResultRequest = {
         personalInfo,
         answers: testAnswers,
@@ -246,11 +275,13 @@ const HollandTest = () => {
         hollandScores
       };
 
-      // Submit to API and get recommendations
+      // 3️⃣ Gọi API lấy kết quả đã xử lý hoàn toàn từ BE
       const apiResponse = await apiService.submitResults(submitData);
 
+      // 👉 BE đã trả sẵn: apiResponse.topGroups (mảng [{type, score}])
       const result: TestResult = {
-        topThreeTypes: sortedTypes,
+        // ⚡ Lấy thẳng từ BE, không tự tính nữa
+        topThreeTypes: apiResponse.topGroups || [],   // hoặc đổi tên sang topGroups nếu muốn
         compatibleMajors: apiResponse.recommendedMajors || [],
         selectedBlocks,
         scores,
@@ -261,35 +292,37 @@ const HollandTest = () => {
 
       setTestResult(result);
       setStep(5);
+
       setTimeout(() => {
-        if (scrollDivRef.current) {
-          scrollDivRef.current.scrollTo({
-            top: 0,
-            behavior: 'smooth', // Cuộn mượt mà
-          });
-        }
+        scrollDivRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       }, 100);
 
       toast({
-        title: "Hoàn thành bài test!",
-        description: apiResponse.recommendationText || "Kết quả Holland của bạn đã được tính toán.",
+        title: 'Hoàn thành bài test!',
+        description:
+          apiResponse.recommendationText ||
+          'Kết quả Holland của bạn đã được tính toán.'
       });
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Có lỗi xảy ra khi xử lý kết quả');
       toast({
-        title: "Lỗi xử lý kết quả",
+        title: 'Lỗi xử lý kết quả',
         description: error instanceof Error ? error.message : 'Có lỗi xảy ra khi xử lý kết quả',
-        variant: "destructive"
+        variant: 'destructive'
       });
     } finally {
       setIsSubmittingResults(false);
     }
   };
 
+
+
+
+
   const resetTest = () => {
     setStep(1);
     setCurrentGroupIndex(0);
-    setPersonalInfo({ name: '', class: '' });
+    setPersonalInfo({ name: '', class: '', number: '' });
     setTestAnswers({});
     setSelectedBlocks([]);
     setScores([]);
