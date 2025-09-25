@@ -289,7 +289,7 @@ const HollandTest = () => {
         recommendationText: apiResponse.recommendationText,
         message: apiResponse.message
       };
-
+      console.log(result)
       setTestResult(result);
       setStep(5);
 
@@ -886,10 +886,14 @@ const HollandTest = () => {
             Chào {personalInfo.name} - Lớp {personalInfo.class} - Số {personalInfo.number}
           </p>
           <div className="text-white/80 text-center mt-2">
-            Kết quả: Bạn thuộc nhóm <span className="font-bold text-white">
-              {testResult?.topThreeTypes.map(item => item.type).join('')}
+            Kết quả: Bạn thuộc nhóm{" "}
+            <span className="font-bold text-white">
+              {testResult?.topThreeTypes?.length
+                ? testResult.topThreeTypes.map(item => item.type).join('')
+                : 'cân bằng'}
             </span>
           </div>
+
         </CardHeader>
         <CardContent className="p-8">
           {/* Recommendation Text from API - Priority display */}
@@ -901,7 +905,7 @@ const HollandTest = () => {
             <div>
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <BarChart3 className="w-5 h-5" />
-                Top 3 nhóm Holland của bạn
+                Top nhóm Holland của bạn
               </h3>
               <div className="space-y-3">
                 {testResult?.topThreeTypes.map((item, index) => (
