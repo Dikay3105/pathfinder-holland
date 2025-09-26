@@ -14,7 +14,7 @@ import schoolBackground from '@/assets/school-background.jpg';
 import schoolLogo from '@/assets/school-logo1.png';
 import { addDejavuFont } from "../../public/fonts/DejaVuSans"; // file chứa base64 font
 import html2pdf from "html2pdf.js";
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 
 interface PersonalInfo {
@@ -71,6 +71,7 @@ const HollandTest = () => {
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
   const [apiError, setApiError] = useState<string>('');
   const navigate = useNavigate();
+  const { id } = useParams();
 
   const loadQuestions = async () => {
     setIsLoadingQuestions(true);
@@ -96,67 +97,92 @@ const HollandTest = () => {
   }, []);
 
   useEffect(() => {
-    if (!student) {
-
-      setStep(1); return;
+    // nếu không có id => về bước 1
+    if (!id) {
+      setStep(1);
+      return;
     }
 
-    // ---- 1️⃣ Sắp xếp giảm dần ----
-    const sorted = Object.entries(student.hollandScores || {})
-      .map(([k, v]) => [k as keyof HollandScores, Number(v)])
-      .sort((a, b) => b[1] - a[1]); // ví dụ [['S',2], ['R',1], ['I',1], ...]
+    const fetchStudent = async () => {
+      setIsLoadingQuestions(true);
+      setApiError('');
 
-    // ---- 2️⃣ Gom thành các bucket theo điểm ----
-    const buckets: { score: number; types: string[] }[] = [];
-    for (let i = 0; i < sorted.length;) {
-      const score = sorted[i][1];
-      const types: string[] = [];
-      while (i < sorted.length && sorted[i][1] === score) {
-        types.push(sorted[i][0]);
-        i++;
-      }
-      buckets.push({ score, types });
-    }
+      try {
+        let student = await apiService.getStudentById(id);
+        student = student.data; // vì BE trả về { success, student }
+        // ---- 1️⃣ Sắp xếp giảm dần ----
+        const sorted = Object.entries(student.hollandScores || {})
+          .map(([k, v]) => [k as keyof HollandScores, Number(v)])
+          .sort((a, b) => b[1] - a[1]);
 
-    // ---- 3️⃣ Áp dụng quy tắc BE ----
-    let topGroups: { type: keyof HollandScores; score: number }[] = [];
-    if (buckets.length > 0) {
-      const maxBucket = buckets[0];
-      // Nếu bucket đầu >=4 nhóm (hoặc tất cả 6 nhóm bằng nhau) => rỗng
-      if (maxBucket.types.length >= 4 || (buckets.length === 1 && maxBucket.types.length === 6)) {
-        topGroups = [];
-      } else {
-        const included: { type: keyof HollandScores; score: number }[] = [];
-        for (let b of buckets) {
-          // chỉ thêm trọn bucket nếu sau khi thêm vẫn <= 3 nhóm
-          if (included.length + b.types.length <= 3) {
-            b.types.forEach(t => included.push({ type: t as keyof HollandScores, score: b.score }));
+        // ---- 2️⃣ Gom bucket theo điểm ----
+        const buckets: { score: number; types: string[] }[] = [];
+        for (let i = 0; i < sorted.length;) {
+          const score = sorted[i][1];
+          const types: string[] = [];
+          while (i < sorted.length && sorted[i][1] === score) {
+            types.push(sorted[i][0]);
+            i++;
+          }
+          buckets.push({ score, types });
+        }
+
+        // ---- 3️⃣ Áp dụng quy tắc BE ----
+        let topGroups: { type: keyof HollandScores; score: number }[] = [];
+        if (buckets.length > 0) {
+          const maxBucket = buckets[0];
+          if (
+            maxBucket.types.length >= 4 ||
+            (buckets.length === 1 && maxBucket.types.length === 6)
+          ) {
+            topGroups = [];
           } else {
-            break; // nếu vượt quá 3 thì dừng, không thêm một phần bucket
+            const included: { type: keyof HollandScores; score: number }[] = [];
+            for (const b of buckets) {
+              if (included.length + b.types.length <= 3) {
+                b.types.forEach(t =>
+                  included.push({ type: t as keyof HollandScores, score: b.score })
+                );
+              } else break;
+            }
+            topGroups = included;
           }
         }
-        topGroups = included;
-      }
-    }
 
-    // ---- 4️⃣ Gán vào state ----
-    const result: TestResult = {
-      topThreeTypes: topGroups,                          // chính là topGroups đã tính
-      compatibleMajors: student.recommendedMajors || [],
-      selectedBlocks: student.selectedBlocks || [],
-      scores: student.scores || [],
-      apiResponse: student,
-      recommendationText: student.recommendationText || "",
+        // ---- 4️⃣ Gán vào state ----
+        const result: TestResult = {
+          topThreeTypes: topGroups,
+          compatibleMajors: student.recommendedMajors || [],
+          selectedBlocks: student.selectedBlocks || [],
+          scores: student.scores || [],
+          apiResponse: student,
+          recommendationText: student.recommendationText || '',
+        };
+
+        setPersonalInfo({
+          name: student.name,
+          class: student.class,
+          number: student.number,
+        });
+        setTestResult(result);
+        setStep(5);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Có lỗi xảy ra khi tải câu hỏi';
+        setApiError(message);
+        toast({
+          title: 'Lỗi tải dữ liệu',
+          description: message,
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoadingQuestions(false);
+      }
     };
 
-    setPersonalInfo({
-      name: student.name,
-      class: student.class,
-      number: student.number,
-    });
-    setTestResult(result);
-    setStep(5);
-  }, [student]);
+    fetchStudent();
+  }, [id]); // ✅ chỉ phụ thuộc vào id
+
 
 
   // // Nếu người dùng truy cập thẳng /result mà không có state
@@ -172,7 +198,7 @@ const HollandTest = () => {
       navigate('/admin');
       return;
     }
-    
+
     if (!personalInfo.name.trim() || !personalInfo.class.trim() || !personalInfo.number || personalInfo.number <= 0) {
       toast({
         title: "Thông tin chưa đầy đủ",
@@ -191,7 +217,7 @@ const HollandTest = () => {
       return;
     }
 
-    
+
 
     setStep(2);
   };
@@ -907,30 +933,39 @@ const HollandTest = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Show Holland types details only if no API recommendation text */}
             {/* {!testResult?.recommendationText && ( */}
-            <div>
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5" />
-                Top nhóm Holland của bạn
-              </h3>
-              <div className="space-y-3">
-                {testResult?.topThreeTypes.map((item, index) => (
-                  <div key={item.type} className="flex items-center space-x-4 p-4 bg-muted rounded-lg">
-                    <div className="text-2xl font-bold text-primary">#{index + 1}</div>
-                    <div className="flex-1">
-                      <div className="font-semibold">
-                        {hollandTypeDescriptions[item.type].name}
+            {testResult?.topThreeTypes?.length > 0 && (
+              <div>
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5" />
+                  Top nhóm Holland của bạn
+                </h3>
+
+                <div className="space-y-3">
+                  {testResult.topThreeTypes.map((item, index) => (
+                    <div
+                      key={item.type}
+                      className="flex items-center space-x-4 p-4 bg-muted rounded-lg"
+                    >
+                      <div className="text-2xl font-bold text-primary">#{index + 1}</div>
+                      <div className="flex-1">
+                        <div className="font-semibold">
+                          {hollandTypeDescriptions[item.type].name}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {hollandTypeDescriptions[item.type].description}
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {hollandTypeDescriptions[item.type].description}
-                      </div>
+                      <Badge
+                        className={`bg-education-${hollandTypeDescriptions[item.type].color} text-white`}
+                      >
+                        {item.score}/10
+                      </Badge>
                     </div>
-                    <Badge className={`bg-education-${hollandTypeDescriptions[item.type].color} text-white`}>
-                      {item.score}/10
-                    </Badge>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+
             {/* )} */}
 
             {testResult?.recommendationText && (

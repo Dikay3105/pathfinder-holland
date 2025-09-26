@@ -109,7 +109,7 @@ const StudentResults = () => {
   const navigate = useNavigate();
 
   const handleDownloadPDF = (studentResult: StudentResult) => {
-    navigate('/', { state: { student: studentResult } });
+    navigate('/admin/student-results/' + studentResult._id, { state: { student: studentResult } });
   };
 
   const formatDate = (dateString: string) => {

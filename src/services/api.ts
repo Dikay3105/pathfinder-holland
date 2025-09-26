@@ -5,6 +5,7 @@ const API_ENDPOINTS = {
   GET_QUESTIONS: `${API_BASE_URL}/questions`, // GET request to fetch all Holland questions
   SUBMIT_RESULTS: `${API_BASE_URL}/results`, // POST request to submit test results
   GET_MAJORS: `${API_BASE_URL}/majors`, // GET request to fetch compatible majors
+  GET_STUDENT: `${API_BASE_URL}/students`, // GET request to fetch student results
 };
 
 // Types for API requests/responses
@@ -160,6 +161,16 @@ export const apiService = {
     } catch (error) {
       console.error('Error fetching questions:', error);
       throw new Error('Không thể tải câu hỏi. Vui lòng thử lại sau.');
+    }
+  },
+  async getStudentById(id: string) {
+    try {
+      const response = await fetch(`${API_ENDPOINTS.GET_STUDENT}/${id}`);
+      if (!response.ok) throw new Error('Failed to fetch student');
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching student:', error);
+      throw new Error('Không thể tải dữ liệu học sinh. Vui lòng thử lại sau.');
     }
   },
 

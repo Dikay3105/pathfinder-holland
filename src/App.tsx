@@ -25,14 +25,15 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/holland-test" element={<HollandTest />} />
-          
+
           {/* Admin Routes */}
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/exam-blocks" element={<ExamBlocks />} />
           <Route path="/admin/holland-questions" element={<HollandQuestions />} />
           <Route path="/admin/majors" element={<Majors />} />
           <Route path="/admin/student-results" element={<StudentResults />} />
-          
+          <Route path="/admin/student-results/:id" element={<HollandTest />} />
+
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
