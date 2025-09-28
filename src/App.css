@@ -60,3 +60,14 @@
   -ms-overflow-style: none;
   /* IE and Edge */
 }
+
+/* file .css hoặc <style> trong component */
+@page: first {
+  margin-top: 0in;
+  /* trang đầu */
+}
+
+@page {
+  margin-top: 0.5in;
+  /* các trang sau */
+}

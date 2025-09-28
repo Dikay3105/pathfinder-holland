@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { testBlocks, hollandTypeDescriptions, Major } from '@/data/testData';
-import { BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight, Target, Loader2, Download } from 'lucide-react';
+import { testBlocks, hollandTypeDescriptions, Major, universityNames } from '@/data/testData';
+import { BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight, Target, Loader2, Download, MessageCircle } from 'lucide-react';
 import { apiService, QuestionResponse, SubmitResultRequest, ResultResponse } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
@@ -15,12 +15,28 @@ import schoolLogo from '@/assets/school-logo1.png';
 import { addDejavuFont } from "../../public/fonts/DejaVuSans"; // file chứa base64 font
 import html2pdf from "html2pdf.js";
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem
+} from "@/components/ui/command";
+import { ChevronsUpDown } from "lucide-react";
 
 
 interface PersonalInfo {
   name: string;
   class: string;
   number: number;
+  university: string,   // mới
+  major: string     // mới
 }
 
 interface HollandScores {
@@ -50,6 +66,7 @@ interface TestResult {
   apiResponse?: ResultResponse;
   recommendationText?: string;
   message?: string;
+  advice?: string;
 }
 
 const HollandTest = () => {
@@ -59,7 +76,7 @@ const HollandTest = () => {
   const pdfRef = useRef<HTMLDivElement>(null);
   const scrollDivRef = useRef(null);
   const [step, setStep] = useState(1);
-  const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ name: '', class: '', number: '' });
+  const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ name: '', class: '', number: '', university: '', major: '' });
   const [testAnswers, setTestAnswers] = useState<TestAnswers>({});
   const [selectedBlocks, setSelectedBlocks] = useState<string[]>([]);
   const [scores, setScores] = useState<ScoreInput[]>([]);
@@ -72,6 +89,8 @@ const HollandTest = () => {
   const [apiError, setApiError] = useState<string>('');
   const navigate = useNavigate();
   const { id } = useParams();
+  const query = new URLSearchParams(location.search);
+  const autoExport = query.get('autoExport') === 'true';
 
   const loadQuestions = async () => {
     setIsLoadingQuestions(true);
@@ -157,12 +176,15 @@ const HollandTest = () => {
           scores: student.scores || [],
           apiResponse: student,
           recommendationText: student.recommendationText || '',
+          advice: student.advice
         };
 
         setPersonalInfo({
           name: student.name,
           class: student.class,
           number: student.number,
+          university: student.university || '',
+          major: student.major || ''
         });
         setTestResult(result);
         setStep(5);
@@ -181,6 +203,7 @@ const HollandTest = () => {
     };
 
     fetchStudent();
+
   }, [id]); // ✅ chỉ phụ thuộc vào id
 
 
@@ -318,7 +341,8 @@ const HollandTest = () => {
         scores,
         apiResponse,
         recommendationText: apiResponse.recommendationText,
-        message: apiResponse.message
+        message: apiResponse.message,
+        advice: apiResponse.advice
       };
       console.log(result)
       setTestResult(result);
@@ -353,7 +377,7 @@ const HollandTest = () => {
   const resetTest = () => {
     setStep(1);
     setCurrentGroupIndex(0);
-    setPersonalInfo({ name: '', class: '', number: '' });
+    setPersonalInfo({ name: '', class: '', number: '', university: '', major: '' });
     setTestAnswers({});
     setSelectedBlocks([]);
     setScores([]);
@@ -606,6 +630,60 @@ const HollandTest = () => {
                 if (e.key === 'Enter') handlePersonalInfoNext();
               }}
             />
+          </div>
+
+          <div className="space-y-4">
+            {/* --- Chọn trường đại học --- */}
+            <div className="space-y-2">
+              <Label className="text-base font-medium">Trường Đại học</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-between h-12 text-base"
+                  >
+                    {personalInfo.university || "Chọn trường"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                  <Command>
+                    <CommandInput placeholder="Tìm kiếm trường..." />
+                    <CommandList>
+                      <CommandEmpty>Không tìm thấy</CommandEmpty>
+                      <CommandGroup>
+                        {universityNames.map((uni) => (
+                          <CommandItem
+                            key={uni}
+                            value={uni}
+                            onSelect={() =>
+                              setPersonalInfo((prev) => ({ ...prev, university: uni }))
+                            }
+                          >
+                            {uni}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* --- Nhập ngành học --- */}
+            <div className="space-y-2">
+              <Label htmlFor="major" className="text-base font-medium">Ngành học mong muốn</Label>
+              <Input
+                id="major"
+                value={personalInfo.major}
+                onChange={(e) =>
+                  setPersonalInfo((prev) => ({ ...prev, major: e.target.value }))
+                }
+                placeholder="Nhập ngành học (VD: Công nghệ thông tin)"
+                className="h-12 text-base"
+              />
+            </div>
           </div>
         </div>
 
@@ -895,8 +973,8 @@ const HollandTest = () => {
     if (!pdfRef.current) return;
 
     const options = {
-      margin: 0,
-      filename: `KetQuaHolland_${personalInfo.name}_${Date.now()}.pdf`,
+      margin: [0.5, 0, 0, 0],
+      filename: `KetQuaHolland_${personalInfo.name}_${personalInfo.class}_${personalInfo.number}.pdf`,
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, scrollY: 0 },   // scale cao để chữ/ảnh sắc nét
       jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
@@ -914,7 +992,10 @@ const HollandTest = () => {
             Kết quả Test Holland
           </CardTitle>
           <p className="text-white/90">
-            Chào {personalInfo.name} - Lớp {personalInfo.class} - Số {personalInfo.number}
+            Chào {personalInfo.name} - Lớp {personalInfo.class} - Danh số {personalInfo.number}
+          </p>
+          <p className="text-white/90">
+            Trường Đại học: {personalInfo.university || 'Chưa chọn'} - Ngành học mong muốn: {personalInfo.major || 'Chưa nhập'}
           </p>
           <div className="text-white/80 text-center mt-2">
             Kết quả: Bạn thuộc nhóm{" "}
@@ -929,8 +1010,8 @@ const HollandTest = () => {
         <CardContent className="p-8">
           {/* Recommendation Text from API - Priority display */}
 
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* lg:grid-cols-2 */}
+          <div className="grid grid-cols-1  gap-8">
             {/* Show Holland types details only if no API recommendation text */}
             {/* {!testResult?.recommendationText && ( */}
             {testResult?.topThreeTypes?.length > 0 && (
@@ -984,7 +1065,23 @@ const HollandTest = () => {
               </div>
             )}
 
-            <div>
+            {testResult?.advice && (
+              <div className="mb-8">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5" />
+                  Lời khuyên dành cho bạn
+                </h3>
+                <div className="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-all duration-300">
+                  <div className="prose prose-sm max-w-none">
+                    <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                      {testResult.advice}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* <div>
               <h3 className="text-xl font-bold mb-4">Ngành học được đề xuất</h3>
               <div className="space-y-3">
                 {testResult?.compatibleMajors && testResult.compatibleMajors.length > 0 ? (
@@ -1010,7 +1107,7 @@ const HollandTest = () => {
                   </div>
                 )}
               </div>
-            </div>
+            </div> */}
           </div>
 
           {testResult?.scores && testResult.scores.length > 0 && (

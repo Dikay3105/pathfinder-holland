@@ -157,3 +157,14 @@ All colors MUST be HSL.
     display: none !important;
   }
 }
+
+/* file .css hoặc <style> trong component */
+@page: first {
+  margin-top: 0in;
+  /* trang đầu */
+}
+
+@page {
+  margin-top: 0.5in;
+  /* các trang sau */
+}

@@ -131,6 +131,15 @@ const MOCK_STUDENT_RESULTS: StudentResult[] = [
   }
 ];
 
+function normalizeClass(value: string) {
+  // bỏ khoảng trắng, chữ thường
+  let v = value.trim().toLowerCase();
+  // thay a0x → ax
+  v = v.replace(/a0(\d)/g, 'a$1');
+  return v;
+}
+
+
 // Admin API Service Functions
 export const adminApiService = {
   // Exam Blocks CRUD
@@ -281,9 +290,9 @@ export const adminApiService = {
   },
 
   // Student Results
-  async getStudentResults(): Promise<StudentResult[]> {
+  async getStudentResults(page: number): Promise<StudentResult[]> {
     try {
-      const res = await fetch(ADMIN_API_ENDPOINTS.GET_STUDENT_RESULTS, {
+      const res = await fetch(ADMIN_API_ENDPOINTS.GET_STUDENT_RESULTS + `?page=${page}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -303,6 +312,7 @@ export const adminApiService = {
   }
   ,
 
+
   async searchStudentResults(filters: SearchFilters): Promise<{
     results: StudentResult[];
     total: number;
@@ -313,7 +323,7 @@ export const adminApiService = {
       // Tạo query string từ filters
       const queryString = new URLSearchParams({
         studentName: filters.studentName ?? '',
-        studentClass: filters.studentClass ?? '',
+        studentClass: filters.studentClass ? normalizeClass(filters.studentClass) : '',
         studentNumber: filters.studentNumber ?? '',
         page: String(filters.page ?? 1),
         limit: String(filters.limit ?? 10),

@@ -1,10 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
+import {
+  Pagination, PaginationContent, PaginationItem,
+  PaginationPrevious, PaginationNext
+} from "@/components/ui/pagination";
 import {
   Table,
   TableBody,
@@ -32,24 +38,23 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"; // shadcn/ui
 import { useNavigate } from 'react-router-dom';
+import html2pdf from 'html2pdf.js';
+import ResultPDF from './ResultStep';
+
 
 
 const StudentResults = () => {
   const [openDetail, setOpenDetail] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [showHiddenResult, setShowHiddenResult] = useState(false);
+  const hiddenRef = useRef<HTMLDivElement>(null);
 
-  const handleOpenDetail = (student: any) => {
-    setSelectedStudent(student);
-    setOpenDetail(true);
-  };
 
-  const handleCloseDetail = () => {
-    setOpenDetail(false);
-    setSelectedStudent(null);
-  };
   const [results, setResults] = useState<StudentResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -62,19 +67,14 @@ const StudentResults = () => {
     dateFrom: '',
     dateTo: '',
     page: 1,
-    limit: 10
+    limit: 5
   });
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchResults();
-  }, []);
-
-  const fetchResults = async () => {
     try {
       setLoading(true);
-      const data = await adminApiService.getStudentResults();
-      setResults(data);
+      fetchResults();
     } catch (error) {
       toast({
         title: 'Lỗi',
@@ -84,33 +84,155 @@ const StudentResults = () => {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+
+  const handleOpenDetail = (student: any) => {
+    setSelectedStudent(student);
+    setOpenDetail(true);
   };
 
-  const handleSearch = async () => {
+  const handleCloseDetail = () => {
+    setOpenDetail(false);
+    setSelectedStudent(null);
+  };
+
+
+  const fetchResults = async (page: number = 1) => {
     try {
-      setSearchLoading(true);
-      const response = await adminApiService.searchStudentResults(searchFilters);
-      setResults(response.results);
+      // setLoading(true);
+      const data = await adminApiService.getStudentResults(page);
+      setResults(data.results);
       setPagination({
-        total: response.total,
-        page: response.page,
-        totalPages: response.totalPages
+        total: data.total,
+        page: data.page,
+        totalPages: data.totalPages,
       });
     } catch (error) {
       toast({
         title: 'Lỗi',
-        description: 'Không thể tìm kiếm kết quả',
+        description: 'Không thể tải danh sách kết quả',
         variant: 'destructive'
+      });
+    } finally {
+      // setLoading(false);
+    }
+  };
+
+  const handleSearch = async (pageNum: number) => {
+    try {
+      setSearchLoading(true);
+      setIsSearching(true);
+
+      // tạo object mới với page mới
+      const filters = { ...searchFilters, page: pageNum, limit: 10000000 };
+      console.log(filters);
+
+      const response = await adminApiService.searchStudentResults(filters);
+
+      setResults(response.results);
+      // console.log(response);
+      setPagination({
+        total: response.total,
+        page: response.page,
+        totalPages: response.totalPages,
+      });
+
+      // lưu lại page vào state filters (để đồng bộ UI nếu cần)
+      setSearchFilters(filters);
+    } catch (error) {
+      toast({
+        title: 'Lỗi',
+        description: 'Không thể tìm kiếm kết quả',
+        variant: 'destructive',
       });
     } finally {
       setSearchLoading(false);
     }
   };
-  const navigate = useNavigate();
 
-  const handleDownloadPDF = (studentResult: StudentResult) => {
-    navigate('/admin/student-results/' + studentResult._id, { state: { student: studentResult } });
+  const navigate = useNavigate();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // const handleDownloadPDF = (studentResult: StudentResult) => {
+  //   navigate('/admin/student-results/' + studentResult._id + '?autoExport=true', { state: { student: studentResult } });
+  // };
+  const pdfRef = useRef<HTMLDivElement>(null);
+  const handleDownloadPDF = (student: any) => {
+    // Render trước -> đợi fetch xong rồi export
+    setSelectedId(student._id);
+    setTimeout(() => {
+      if (pdfRef.current) {
+        html2pdf()
+          .from(pdfRef.current)
+          .set({
+            margin: [0.5, 0, 0, 0],
+            filename: `KetQua_${student.name}_${student.class}_${student.number}.pdf`,
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+          })
+          .save();
+      }
+    }, 500)// cho fetch vài giây, hoặc dùng callback khi load xong
   };
+
+  // Giả sử results là mảng StudentResult đã lưu state
+  const downloadPDFAll = async () => {
+    try {
+      toast({
+        title: "Đang tạo PDF",
+        description: "Vui lòng chờ…",
+        variant: "default",
+      });
+
+      const zip = new JSZip();
+
+      for (const student of results) {
+        await new Promise<void>((resolve) => {
+          setSelectedId(student._id);
+
+          setTimeout(async () => {
+            if (pdfRef.current) {
+              // tạo blob thay vì save
+              const blob: Blob = await html2pdf()
+                .from(pdfRef.current)
+                .set({
+                  margin: [0.5, 0, 0, 0],
+                  filename: `KetQua_${student.name}_${student.class}_${student.number}.pdf`,
+                  html2canvas: { scale: 2 },
+                  jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
+                })
+                .outputPdf("blob"); // <- lấy blob
+
+              // thêm file vào zip
+              zip.file(
+                `KetQua_${student.name}_${student.class}_${student.number}.pdf`,
+                blob
+              );
+            }
+            resolve();
+          }, 0); // thời gian chờ render
+        });
+      }
+
+      // Tạo zip blob và tải
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      saveAs(zipBlob, "DanhSachKetQua.zip");
+
+      toast({
+        title: "Hoàn tất",
+        description: "Đã tải file zip",
+        variant: "default",
+      });
+    } catch (error) {
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải file zip",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('vi-VN');
@@ -215,7 +337,7 @@ const StudentResults = () => {
               </div>
             </div>
             <div className="flex space-x-2">
-              <Button onClick={handleSearch} disabled={searchLoading}>
+              <Button onClick={() => handleSearch(1)} disabled={searchLoading}>
                 <Search className="mr-2 h-4 w-4" />
                 {searchLoading ? 'Đang tìm...' : 'Tìm kiếm'}
               </Button>
@@ -231,10 +353,19 @@ const StudentResults = () => {
                     page: 1,
                     limit: 10
                   });
+                  setIsSearching(false);
                   fetchResults();
                 }}
               >
                 Xóa bộ lọc
+              </Button>
+              <Button
+                className="bg-green-500 hover:bg-green-600 text-white shadow-md"
+                onClick={() => {
+                  downloadPDFAll();
+                }}
+              >
+                Tải toàn bộ kết quả
               </Button>
             </div>
           </CardContent>
@@ -247,7 +378,7 @@ const StudentResults = () => {
               <span>Danh sách kết quả ({results.length})</span>
               <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                 <Users className="h-4 w-4" />
-                <span>{pagination.total || results.length} tổng cộng</span>
+                <span>{pagination.total} tổng cộng</span>
               </div>
             </CardTitle>
           </CardHeader>
@@ -344,7 +475,7 @@ const StudentResults = () => {
             </DialogHeader>
 
             {selectedStudent && (
-              <div className="space-y-3 text-sm">
+              <div className="space-y-3 text-sm overflow-y-auto max-h-[70vh]">
                 <p><strong>Số báo danh:</strong> {selectedStudent.number}</p>
                 <p><strong>Ngày test:</strong> {formatDate(selectedStudent.createdAt)}</p>
 
@@ -380,12 +511,65 @@ const StudentResults = () => {
                     ))}
                   </ul>
                 </div>
+
+                {/* 🆕 Trường mong muốn */}
+                {selectedStudent.university && (
+                  <p>
+                    <strong>Trường mong muốn:</strong> {selectedStudent.university}
+                  </p>
+                )}
+
+                {/* 🆕 Ngành mong muốn */}
+                {selectedStudent.major && (
+                  <p>
+                    <strong>Ngành mong muốn:</strong> {selectedStudent.major}
+                  </p>
+                )}
               </div>
             )}
+
           </DialogContent>
         </Dialog>
 
+        <Pagination className="mt-4">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                className={(
+                  pagination.page === 1 && "pointer-events-none opacity-50"
+                )} onClick={() => {
+                  if (isSearching) {
+                    handleSearch(pagination.page - 1);
+                  } else {
+                    fetchResults(pagination.page - 1)
+                  }
+                }}
+              />
+            </PaginationItem>
+            <span className="px-2">Trang {pagination.page}/{pagination.totalPages}</span>
+            <PaginationItem>
+              <PaginationNext
+                onClick={() => {
+                  if (isSearching) {
+                    handleSearch(pagination.page + 1);
+                  } else {
+                    fetchResults(pagination.page + 1)
+                  }
+                }}
+                className={(
+                  pagination.page === pagination.totalPages && "pointer-events-none opacity-50"
+                )}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+
       </main>
+
+      <div style={{ display: 'none' }}>
+        <ResultPDF ref={pdfRef} studentId={selectedId} />
+      </div>
+
     </div>
   );
 };
