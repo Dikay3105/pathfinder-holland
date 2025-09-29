@@ -55,6 +55,8 @@ const ResultPDF = forwardRef<HTMLDivElement, ResultPDFProps>(({ studentId }, ref
           name: s.name,
           class: s.class,
           number: s.number,
+          university: s.university,
+          major: s.major
         });
         setTestResult({
           topThreeTypes: topThree,
