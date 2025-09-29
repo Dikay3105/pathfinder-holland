@@ -534,7 +534,18 @@ const StudentResults = () => {
               <div className="space-y-3 text-sm overflow-y-auto max-h-[70vh]">
                 <p><strong>Số báo danh:</strong> {selectedStudent.number}</p>
                 <p><strong>Ngày test:</strong> {formatDateTime(selectedStudent.createdAt)}</p>
-
+                {selectedStudent.selectedBlocks && selectedStudent.selectedBlocks.length > 0 && (
+                  <div>
+                    <strong>Khối đã chọn:</strong>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selectedStudent.selectedBlocks.map((block: string) => (
+                        <Badge key={block} variant="outline" className="text-xs">
+                          {block}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <strong>Điểm Holland:</strong>
                   <div className="flex flex-wrap gap-1 mt-1">
