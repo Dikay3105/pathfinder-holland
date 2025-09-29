@@ -71,3 +71,8 @@
   margin-top: 0.5in;
   /* các trang sau */
 }
+
+.page-break {
+  page-break-before: always;
+  /* sang trang mới khi in / xuất PDF */
+}

@@ -166,7 +166,7 @@ const StudentResults = () => {
         html2pdf()
           .from(pdfRef.current)
           .set({
-            margin: [0.5, 0, 0, 0],
+            margin: [0.5, 0, 0.3, 0],
             filename: `KetQua_${student.name}_${student.class}_${student.number}.pdf`,
             html2canvas: { scale: 2 },
             jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
@@ -197,7 +197,7 @@ const StudentResults = () => {
               const blob: Blob = await html2pdf()
                 .from(pdfRef.current)
                 .set({
-                  margin: [0.5, 0, 0, 0],
+                  margin: [0.5, 0, 0.3, 0],
                   filename: `KetQua_${student.name}_${student.class}_${student.number}.pdf`,
                   html2canvas: { scale: 2 },
                   jsPDF: { unit: "in", format: "a4", orientation: "portrait" },

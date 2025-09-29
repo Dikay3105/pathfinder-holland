@@ -81,6 +81,7 @@ const HollandTest = () => {
   const [selectedBlocks, setSelectedBlocks] = useState<string[]>([]);
   const [scores, setScores] = useState<ScoreInput[]>([]);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [open, setOpen] = React.useState(false);
 
   // API related states
   const [questions, setQuestions] = useState<QuestionResponse[]>([]);
@@ -222,10 +223,10 @@ const HollandTest = () => {
       return;
     }
 
-    if (!personalInfo.name.trim() || !personalInfo.class.trim() || !personalInfo.number || personalInfo.number <= 0) {
+    if (!personalInfo.name.trim() || !personalInfo.class.trim() || !personalInfo.number || personalInfo.number <= 0 || !personalInfo.university.trim() || !personalInfo.major.trim()) {
       toast({
         title: "Thông tin chưa đầy đủ",
-        description: "Vui lòng điền đầy đủ họ tên, lớp và danh số.",
+        description: "Vui lòng điền đầy đủ thông tin cá nhân trước khi tiếp tục.",
         variant: "destructive"
       });
       return;
@@ -355,7 +356,6 @@ const HollandTest = () => {
       toast({
         title: 'Hoàn thành bài test!',
         description:
-          apiResponse.recommendationText ||
           'Kết quả Holland của bạn đã được tính toán.'
       });
     } catch (error) {
@@ -636,12 +636,13 @@ const HollandTest = () => {
             {/* --- Chọn trường đại học --- */}
             <div className="space-y-2">
               <Label className="text-base font-medium">Trường Đại học</Label>
-              <Popover>
+              <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     role="combobox"
                     className="w-full justify-between h-12 text-base"
+                    onClick={() => setOpen(!open)}
                   >
                     {personalInfo.university || "Chọn trường"}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -657,9 +658,10 @@ const HollandTest = () => {
                           <CommandItem
                             key={uni}
                             value={uni}
-                            onSelect={() =>
-                              setPersonalInfo((prev) => ({ ...prev, university: uni }))
-                            }
+                            onSelect={() => {
+                              setPersonalInfo((prev) => ({ ...prev, university: uni }));
+                              setOpen(false); // 🔑 Đóng popover khi chọn
+                            }}
                           >
                             {uni}
                           </CommandItem>
@@ -669,6 +671,7 @@ const HollandTest = () => {
                   </Command>
                 </PopoverContent>
               </Popover>
+
             </div>
 
             {/* --- Nhập ngành học --- */}
@@ -973,8 +976,8 @@ const HollandTest = () => {
     if (!pdfRef.current) return;
 
     const options = {
-      margin: [0.5, 0, 0, 0],
-      filename: `KetQuaHolland_${personalInfo.name}_${personalInfo.class}_${personalInfo.number}.pdf`,
+      margin: [0.5, 0, 0.3, 0],
+      filename: `KetQua_${personalInfo.name}_${personalInfo.class}_${personalInfo.number}.pdf`,
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, scrollY: 0 },   // scale cao để chữ/ảnh sắc nét
       jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
@@ -1066,16 +1069,17 @@ const HollandTest = () => {
             )}
 
             {testResult?.advice && (
-              <div className="mb-8">
+              <div className="card page-break mb-8">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <Sparkles className="w-5 h-5" />
                   Lời khuyên dành cho bạn
                 </h3>
                 <div className="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-all duration-300">
                   <div className="prose prose-sm max-w-none">
-                    <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
-                      {testResult.advice}
-                    </p>
+                    <div
+                      className="text-muted-foreground leading-relaxed whitespace-pre-line card"
+                      dangerouslySetInnerHTML={{ __html: testResult.advice }}
+                    />
                   </div>
                 </div>
               </div>

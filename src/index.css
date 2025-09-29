@@ -151,6 +151,12 @@ All colors MUST be HSL.
   break-inside: avoid;
 }
 
+.page-break {
+  page-break-before: always;
+  /* sang trang mới khi in / xuất PDF */
+  break-before: page;
+}
+
 /* file css */
 @media print {
   .no-print {

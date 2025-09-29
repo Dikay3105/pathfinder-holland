@@ -144,7 +144,7 @@ const ResultPDF = forwardRef<HTMLDivElement, ResultPDFProps>(({ studentId }, ref
             {/* )} */}
 
             {testResult?.recommendationText && (
-              <div className="mb-8">
+              <div className="card mb-8">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <Target className="w-5 h-5" />
                   Kết quả phân tích Holland
@@ -189,16 +189,18 @@ const ResultPDF = forwardRef<HTMLDivElement, ResultPDFProps>(({ studentId }, ref
           </div>
 
           {testResult?.advice && (
-            <div className="mt-8 card" >
+            <div className="mt-8 card page-break" >
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <Sparkles className="w-5 h-5" />
                 Lời khuyên dành cho bạn
               </h3>
               <div className="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-all duration-300">
                 <div className="prose prose-sm max-w-none">
-                  <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
-                    {testResult.advice}
-                  </p>
+                  <div
+                    style={{ pageBreakInside: 'avoid' }}
+                    className="text-muted-foreground leading-relaxed whitespace-pre-line card"
+                    dangerouslySetInnerHTML={{ __html: testResult.advice }}
+                  />
                 </div>
               </div>
             </div>
