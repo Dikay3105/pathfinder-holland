@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import 'react-confirm-alert/src/react-confirm-alert.css';
+import { confirmAlert } from 'react-confirm-alert';
 import {
   Pagination, PaginationContent, PaginationItem,
   PaginationPrevious, PaginationNext
@@ -97,6 +99,38 @@ const StudentResults = () => {
     setSelectedStudent(null);
   };
 
+  const handleDelete = (studentId: string) => {
+    confirmAlert({
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc muốn xóa học sinh này?',
+      buttons: [
+        {
+          label: 'Có',
+          onClick: async () => {
+            try {
+              // gọi API xóa
+              await adminApiService.deleteStudent(studentId);
+
+              // cập nhật state để bảng refresh
+              setResults(prev => prev.filter(r => r._id !== studentId));
+              toast({
+                title: 'Thành công',
+                description: 'Đã xóa học sinh',
+                variant: 'default'
+              });
+            } catch (err) {
+              console.error(err);
+              alert('Xóa thất bại');
+            }
+          }
+        },
+        {
+          label: 'Hủy',
+          onClick: () => { }
+        }
+      ]
+    });
+  };
 
   const fetchResults = async (page: number = 1) => {
     try {
@@ -235,6 +269,10 @@ const StudentResults = () => {
 
 
   const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('vi-VN');
+  };
+
+  const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString('vi-VN', {
       day: '2-digit',
       month: '2-digit',
@@ -390,16 +428,16 @@ const StudentResults = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
+            <Table className="table-auto text-center">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Học sinh</TableHead>
-                  <TableHead>Lớp</TableHead>
-                  <TableHead>SBD</TableHead>
-                  <TableHead>Ngày test</TableHead>
-                  <TableHead>Top Holland</TableHead>
-                  <TableHead>Ngành đề xuất</TableHead>
-                  <TableHead>Tools</TableHead>
+                  <TableHead className='text-center'>Học sinh</TableHead>
+                  <TableHead className='text-center'>Lớp</TableHead>
+                  <TableHead className='text-center'>SBD</TableHead>
+                  <TableHead className='text-center'>Ngày test</TableHead>
+                  <TableHead className='text-center'>Top Holland</TableHead>
+                  <TableHead className='text-center'>Ngành đề xuất</TableHead>
+                  <TableHead className='text-center'>Tools</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -407,28 +445,28 @@ const StudentResults = () => {
                   const topTypes = Object.entries(result.hollandScores).map(([type, score]) => ({
                     type,
                     score,
-                  })); return (
-                    <TableRow key={result._id}>
+                  }));
+
+                  return (
+                    <TableRow key={result._id} className="hover:bg-gray-50">
                       <TableCell className="font-medium">{result.name}</TableCell>
                       <TableCell>{result.class}</TableCell>
                       <TableCell>{result.number}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="h-3 w-3" />
-                          <span>{formatDate(result.createdAt)}</span>
-                        </div>
+                      <TableCell className="flex items-center justify-center space-x-1">
+                        <Calendar className="h-4 w-4" />
+                        <span>{formatDate(result.createdAt)}</span>
                       </TableCell>
                       <TableCell>
-                        <div className="flex space-x-1">
+                        <div className="flex flex-wrap justify-center gap-1">
                           {topTypes.map(({ type, score }) => (
                             <Badge key={type} variant="outline" className="text-xs">
-                              {type}: {score as number}
+                              {type}: {score}
                             </Badge>
                           ))}
                         </div>
                       </TableCell>
                       <TableCell className="max-w-xs">
-                        <div className="space-y-1">
+                        <div className="flex flex-wrap justify-center gap-1">
                           {result.recommendedMajors.slice(0, 2).map((major) => (
                             <Badge key={major._id} variant="secondary" className="text-xs">
                               {major.name}
@@ -441,11 +479,12 @@ const StudentResults = () => {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="flex justify-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleDownloadPDF(result)}
+                          title="Xuất PDF"
                         >
                           <Download className="h-4 w-4 mr-1" />
                           <FileText className="h-4 w-4" />
@@ -454,8 +493,17 @@ const StudentResults = () => {
                           variant="secondary"
                           size="sm"
                           onClick={() => handleOpenDetail(result)}
+                          title="Xem chi tiết"
                         >
-                          Xem chi tiết
+                          Xem
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDelete(result._id)}
+                          title="Xóa học sinh"
+                        >
+                          Xóa
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -471,6 +519,7 @@ const StudentResults = () => {
               </div>
             )}
           </CardContent>
+
         </Card>
         <Dialog open={openDetail} onOpenChange={setOpenDetail}>
           <DialogContent className="max-w-lg">
@@ -484,7 +533,7 @@ const StudentResults = () => {
             {selectedStudent && (
               <div className="space-y-3 text-sm overflow-y-auto max-h-[70vh]">
                 <p><strong>Số báo danh:</strong> {selectedStudent.number}</p>
-                <p><strong>Ngày test:</strong> {formatDate(selectedStudent.createdAt)}</p>
+                <p><strong>Ngày test:</strong> {formatDateTime(selectedStudent.createdAt)}</p>
 
                 <div>
                   <strong>Điểm Holland:</strong>

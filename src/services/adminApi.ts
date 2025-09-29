@@ -24,6 +24,7 @@ const ADMIN_API_ENDPOINTS = {
   GET_STUDENT_RESULTS: `${ADMIN_API_BASE_URL}/students`,
   GET_STUDENT_RESULT_PDF: (id: string) => `${ADMIN_API_BASE_URL}/student-results/${id}/pdf`,
   SEARCH_STUDENT_RESULTS: `${ADMIN_API_BASE_URL}/students/search`,
+  DELETE_STUDENT: `${ADMIN_API_BASE_URL}/students`
 };
 
 // Types for Admin API
@@ -325,6 +326,8 @@ export const adminApiService = {
         studentName: filters.studentName ?? '',
         studentClass: filters.studentClass ? normalizeClass(filters.studentClass) : '',
         studentNumber: filters.studentNumber ?? '',
+        dateFrom: filters.dateFrom ?? '',
+        dateTo: filters.dateTo ?? '',
         page: String(filters.page ?? 1),
         limit: String(filters.limit ?? 10),
       }).toString();
@@ -357,5 +360,24 @@ export const adminApiService = {
       console.error('Error getting PDF URL:', error);
       throw new Error('Không thể tải PDF');
     }
+  },
+  async deleteStudent(id: string): Promise<void> {
+    try {
+      const res = await fetch(`${ADMIN_API_ENDPOINTS.DELETE_STUDENT}/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      // nếu API trả về dữ liệu, có thể parse res.json() ở đây
+      return;
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      throw new Error('Không thể xóa học sinh');
+    }
   }
+
 };
