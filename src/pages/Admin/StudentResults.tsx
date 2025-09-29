@@ -42,6 +42,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
 import ResultPDF from './ResultStep';
+import * as XLSX from 'xlsx';
 
 
 
@@ -50,12 +51,14 @@ const StudentResults = () => {
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [showHiddenResult, setShowHiddenResult] = useState(false);
   const hiddenRef = useRef<HTMLDivElement>(null);
-
-
   const [results, setResults] = useState<StudentResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [classes, setClasses] = useState<string[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string>('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [downloadType, setDownloadType] = useState<'pdf' | 'excel'>('pdf');
 
   const [pagination, setPagination] = useState({
     total: 0,
@@ -72,6 +75,9 @@ const StudentResults = () => {
     limit: 5
   });
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const pdfRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -88,6 +94,17 @@ const StudentResults = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const fetchClasses = async () => {
+      try {
+        const res = await adminApiService.getClasses(); // giả sử API trả về string[]
+        setClasses(res);
+      } catch (error) {
+        toast({ title: 'Lỗi', description: 'Không lấy được danh sách lớp', variant: 'destructive' });
+      }
+    };
+    fetchClasses();
+  }, []);
 
   const handleOpenDetail = (student: any) => {
     setSelectedStudent(student);
@@ -97,6 +114,18 @@ const StudentResults = () => {
   const handleCloseDetail = () => {
     setOpenDetail(false);
     setSelectedStudent(null);
+  };
+
+  const handleDownload = () => {
+    if (!selectedClass) return toast({ title: 'Lỗi', description: 'Chưa chọn lớp', variant: 'destructive' });
+
+    setDialogOpen(false);
+
+    if (downloadType === 'pdf') {
+      downloadPDFByClass(selectedClass);
+    } else {
+      downloadExcelByClass(selectedClass);
+    }
   };
 
   const handleDelete = (studentId: string) => {
@@ -185,13 +214,144 @@ const StudentResults = () => {
     }
   };
 
-  const navigate = useNavigate();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // --- Tải PDF theo lớp ---
+  const downloadPDFByClass = async (className?: string) => {
+    if (!className) return toast({ title: 'Lỗi', description: 'Chưa chọn lớp', variant: 'destructive' });
+
+    try {
+      toast({ title: 'Đang tạo PDF', description: 'Vui lòng chờ…', variant: 'default' });
+
+      // gọi API chỉ lấy học sinh lớp đó
+      const response = await adminApiService.searchStudentResults({
+        ...searchFilters,
+        studentClass: className,
+        page: 1,
+        limit: 100000, // lấy tất cả
+      });
+
+      const students = response.results;
+      if (!students.length) return toast({ title: 'Thông báo', description: 'Không có học sinh', variant: 'default' });
+
+      const zip = new JSZip();
+
+      for (const student of students) {
+        await new Promise<void>((resolve) => {
+          setSelectedId(student._id);
+
+          setTimeout(async () => {
+            if (pdfRef.current) {
+              const blob: Blob = await html2pdf()
+                .from(pdfRef.current)
+                .set({
+                  margin: [0.5, 0, 0.3, 0],
+                  filename: `KetQua_${student.name}_${student.class}_${student.number}.pdf`,
+                  html2canvas: { scale: 2 },
+                  jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
+                })
+                .outputPdf("blob");
+
+              zip.file(`KetQua_${student.name}_${student.class}_${student.number}.pdf`, blob);
+            }
+            resolve();
+          }, 0);
+        });
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipBlob, `KetQua_Lop_${className}.zip`);
+
+      toast({ title: 'Hoàn tất', description: 'Đã tải file zip', variant: 'default' });
+    } catch (error) {
+      toast({ title: 'Lỗi', description: 'Không thể tải file', variant: 'destructive' });
+    }
+  };
+
+  // --- Tải Excel theo lớp ---
+  const downloadExcelByClass = async (className?: string) => {
+    if (!className)
+      return toast({ title: 'Lỗi', description: 'Chưa chọn lớp', variant: 'destructive' });
+
+    try {
+      toast({ title: 'Đang tạo Excel', description: 'Vui lòng chờ…', variant: 'default' });
+
+      const response = await adminApiService.searchStudentResults({
+        ...searchFilters,
+        studentClass: className,
+        page: 1,
+        limit: 100000,
+      });
+
+      const students = response.results;
+      if (!students.length)
+        return toast({ title: 'Thông báo', description: 'Không có học sinh', variant: 'default' });
+
+      // --- Tạo dữ liệu cho Excel ---
+      const wsData = [
+        [
+          'STT', 'Họ và tên', 'Lớp', 'Số báo danh',
+          'Điểm các môn', 'Điểm Holland', 'Khối thi', 'Ngành học mong muốn', 'Trường'
+        ]
+      ];
+
+      students.forEach((s, idx) => {
+        const scoresText = s.scores
+          ?.map(sc => `${sc.subject}: ${sc.currentScore} (Mục tiêu: ${sc.targetScore})`)
+          .join('\n'); // xuống dòng trong ô
+        const hollandText = Object.entries(s.hollandScores || {})
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('\n'); // xuống dòng trong ô
+        const blocksText = s.selectedBlocks?.join(', ');
+
+        wsData.push([
+          idx + 1,
+          s.name,
+          s.class,
+          s.number,
+          scoresText,
+          hollandText,
+          blocksText,
+          s.major,
+          s.university
+        ]);
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      // Tự động tính chiều rộng cột
+      const colWidths = wsData[0].map((_, colIndex) => {
+        const maxLength = wsData.reduce((max, row) => {
+          const cell = row[colIndex];
+          return Math.max(max, cell ? cell.toString().length : 10);
+        }, 10);
+        return { wch: maxLength + 2 };
+      });
+      ws['!cols'] = colWidths;
+
+      // Bật wrap text cho tất cả ô
+      Object.keys(ws).forEach((key) => {
+        if (key.startsWith('!')) return;
+        if (!ws[key].s) ws[key].s = {};
+        if (!ws[key].s.alignment) ws[key].s.alignment = {};
+        ws[key].s.alignment.wrapText = true;
+      });
+
+      XLSX.utils.book_append_sheet(wb, ws, `Lop_${className}`);
+      XLSX.writeFile(wb, `KetQua_Lop_${className}.xlsx`);
+
+      toast({ title: 'Hoàn tất', description: 'Đã tải Excel', variant: 'default' });
+    } catch (error) {
+      toast({ title: 'Lỗi', description: 'Không thể tải file Excel', variant: 'destructive' });
+    }
+  };
+
+
+
+
 
   // const handleDownloadPDF = (studentResult: StudentResult) => {
   //   navigate('/admin/student-results/' + studentResult._id + '?autoExport=true', { state: { student: studentResult } });
   // };
-  const pdfRef = useRef<HTMLDivElement>(null);
   const handleDownloadPDF = (student: any) => {
     // Render trước -> đợi fetch xong rồi export
     setSelectedId(student._id);
@@ -381,12 +541,20 @@ const StudentResults = () => {
                 />
               </div>
             </div>
-            <div className="flex space-x-2">
-              <Button onClick={() => handleSearch(1)} disabled={searchLoading}>
+            <div className="flex flex-wrap gap-2">
+              {/* Tìm kiếm */}
+              <Button
+                className="flex-1 min-w-[120px]"
+                onClick={() => handleSearch(1)}
+                disabled={searchLoading}
+              >
                 <Search className="mr-2 h-4 w-4" />
                 {searchLoading ? 'Đang tìm...' : 'Tìm kiếm'}
               </Button>
+
+              {/* Xóa bộ lọc */}
               <Button
+                className="flex-1 min-w-[120px]"
                 variant="outline"
                 onClick={() => {
                   setSearchFilters({
@@ -404,15 +572,22 @@ const StudentResults = () => {
               >
                 Xóa bộ lọc
               </Button>
+
+              {/* Tải Excel theo lớp */}
               <Button
-                className="bg-green-500 hover:bg-green-600 text-white shadow-md"
-                onClick={() => {
-                  downloadPDFAll();
-                }}
-              >
-                Tải toàn bộ kết quả
+                className="flex-1 min-w-[120px] bg-blue-500 hover:bg-blue-600 text-white shadow-md"
+                onClick={() => { setDownloadType('excel'); setDialogOpen(true); }}              >
+                Tải Excel theo lớp
+              </Button>
+
+              {/* Tải PDF theo lớp */}
+              <Button
+                className="flex-1 min-w-[120px] bg-purple-500 hover:bg-purple-600 text-white shadow-md"
+                onClick={() => { setDownloadType('pdf'); setDialogOpen(true); }}              >
+                Tải PDF theo lớp
               </Button>
             </div>
+
           </CardContent>
         </Card>
 
@@ -595,6 +770,37 @@ const StudentResults = () => {
               </div>
             )}
 
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog chọn lớp */}
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Chọn lớp để tải {downloadType === 'pdf' ? 'PDF' : 'Excel'}</DialogTitle>
+              <DialogDescription>
+                Vui lòng chọn lớp bạn muốn tải kết quả
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 mt-2">
+              <Label>Lớp</Label>
+              <select
+                className="w-full border rounded px-2 py-1"
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+              >
+                <option value="">Chọn lớp</option>
+                {classes.map((cls) => (
+                  <option key={cls} value={cls}>{cls}</option>
+                ))}
+              </select>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
+                <Button onClick={handleDownload}>Tải</Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
 

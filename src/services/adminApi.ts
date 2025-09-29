@@ -24,7 +24,8 @@ const ADMIN_API_ENDPOINTS = {
   GET_STUDENT_RESULTS: `${ADMIN_API_BASE_URL}/students`,
   GET_STUDENT_RESULT_PDF: (id: string) => `${ADMIN_API_BASE_URL}/student-results/${id}/pdf`,
   SEARCH_STUDENT_RESULTS: `${ADMIN_API_BASE_URL}/students/search`,
-  DELETE_STUDENT: `${ADMIN_API_BASE_URL}/students`
+  DELETE_STUDENT: `${ADMIN_API_BASE_URL}/students`,
+  GET_CLASSES: `${ADMIN_API_BASE_URL}/students/classes`,
 };
 
 // Types for Admin API
@@ -377,6 +378,31 @@ export const adminApiService = {
     } catch (error) {
       console.error('Error deleting student:', error);
       throw new Error('Không thể xóa học sinh');
+    }
+  },
+
+
+  async getClasses(): Promise<string[]> {
+    try {
+      const res = await fetch(ADMIN_API_ENDPOINTS.GET_CLASSES, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      if (data.success && Array.isArray(data.classes)) {
+        return data.classes;
+      } else {
+        throw new Error('Không lấy được danh sách lớp');
+      }
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+      return [];
     }
   }
 
