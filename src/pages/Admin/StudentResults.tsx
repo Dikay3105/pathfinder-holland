@@ -275,7 +275,10 @@ const StudentResults = () => {
       toast({ title: 'Đang tạo Excel', description: 'Vui lòng chờ…', variant: 'default' });
 
       const response = await adminApiService.searchStudentResults({
-        ...searchFilters,
+        studentName: '',
+        studentNumber: '',
+        dateFrom: '',
+        dateTo: '',
         studentClass: className,
         page: 1,
         limit: 100000,
@@ -294,12 +297,51 @@ const StudentResults = () => {
       ];
 
       students.forEach((s, idx) => {
+        // --- Điểm các môn ---
         const scoresText = s.scores
           ?.map(sc => `${sc.subject}: ${sc.currentScore} (Mục tiêu: ${sc.targetScore})`)
-          .join('\n'); // xuống dòng trong ô
-        const hollandText = Object.entries(s.hollandScores || {})
-          .map(([k, v]) => `${k}: ${v}`)
-          .join('\n'); // xuống dòng trong ô
+          .join('\n');
+
+        // --- Top Holland theo logic BE ---
+        const sorted = Object.entries(s.hollandScores || {})
+          .map(([k, v]) => [k as keyof HollandScores, Number(v)])
+          .sort((a, b) => b[1] - a[1]);
+
+        const buckets: { score: number; types: string[] }[] = [];
+        for (let i = 0; i < sorted.length;) {
+          const score = sorted[i][1];
+          const types: string[] = [];
+          while (i < sorted.length && sorted[i][1] === score) {
+            types.push(sorted[i][0]);
+            i++;
+          }
+          buckets.push({ score, types });
+        }
+
+        let topGroups: { type: keyof HollandScores; score: number }[] = [];
+        if (buckets.length > 0) {
+          const maxBucket = buckets[0];
+          if (
+            maxBucket.types.length >= 4 ||
+            (buckets.length === 1 && maxBucket.types.length === 6)
+          ) {
+            topGroups = [];
+          } else {
+            const included: { type: keyof HollandScores; score: number }[] = [];
+            for (const b of buckets) {
+              if (included.length + b.types.length <= 3) {
+                b.types.forEach(t =>
+                  included.push({ type: t as keyof HollandScores, score: b.score })
+                );
+              } else break;
+            }
+            topGroups = included;
+          }
+        }
+
+        const hollandText = topGroups.map(g => `${g.type}: ${g.score}`).join(', '); // xuống dòng trong ô
+
+        // --- Khối thi ---
         const blocksText = s.selectedBlocks?.join(', ');
 
         wsData.push([
@@ -314,6 +356,7 @@ const StudentResults = () => {
           s.university
         ]);
       });
+
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(wsData);
