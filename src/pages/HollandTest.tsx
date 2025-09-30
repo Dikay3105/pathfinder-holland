@@ -603,9 +603,14 @@ const HollandTest = () => {
             <Input
               id="class"
               value={personalInfo.class}
-              onChange={e =>
-                setPersonalInfo(prev => ({ ...prev, class: e.target.value }))
-              }
+              onChange={e => {
+                const raw = e.target.value;
+                // Chuyển về chữ thường và bỏ các số 0 đứng trước số khác
+                const normalized = raw
+                  .toUpperCase()                 // 12A01 -> 12a01
+                  .replace(/0+(\d)/g, '$1');     // bỏ 0 đứng trước số: 12a01 -> 12a1
+                setPersonalInfo(prev => ({ ...prev, class: normalized }));
+              }}
               placeholder="Nhập lớp của bạn (VD: 12A1)"
               className="h-12 text-base"
             />
