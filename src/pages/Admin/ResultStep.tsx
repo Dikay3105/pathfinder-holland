@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'; import { BarChart3, CheckCircle, 
 import { hollandTypeDescriptions } from '@/data/testData';
 import { apiService, QuestionResponse, SubmitResultRequest, ResultResponse } from '@/services/api';
 import { Button } from '@/components/ui/button';
+import { processTopGroups } from '@/utils/processTopGroups';
 
 interface PersonalInfo {
   name: string;
@@ -45,11 +46,8 @@ const ResultPDF = forwardRef<HTMLDivElement, ResultPDFProps>(({ studentId }, ref
         const res = await apiService.getStudentById(studentId);
         const s = res.data;
 
-        // sắp xếp nhóm Holland (ví dụ giống code bạn đưa)
-        const sorted = Object.entries(s.hollandScores || {})
-          .map(([k, v]) => [k as keyof typeof hollandTypeDescriptions, Number(v)])
-          .sort((a, b) => b[1] - a[1]);
-        const topThree = sorted.slice(0, 3).map(([type, score]) => ({ type, score }));
+        // Dùng rule BE để tính topGroups
+        const topGroups: TopGroup[] = processTopGroups(s.hollandScores || {});
 
         setPersonalInfo({
           name: s.name,
@@ -58,8 +56,9 @@ const ResultPDF = forwardRef<HTMLDivElement, ResultPDFProps>(({ studentId }, ref
           university: s.university,
           major: s.major
         });
+
         setTestResult({
-          topThreeTypes: topThree,
+          topGroups,                           // ✅ thay vì topThree
           compatibleMajors: s.recommendedMajors || [],
           selectedBlocks: s.selectedBlocks || [],
           scores: s.scores || [],
@@ -67,15 +66,14 @@ const ResultPDF = forwardRef<HTMLDivElement, ResultPDFProps>(({ studentId }, ref
           advice: s.advice
         });
       } catch (err) {
-        console.error('Fetch student failed', err);
+        console.error("Fetch student failed", err);
       } finally {
         setLoading(false);
       }
     };
-    if (studentId)
-      fetchData();
-  }, [studentId]);
 
+    if (studentId) fetchData();
+  }, [studentId]);
   if (loading) return <div ref={ref}>Đang tải dữ liệu...</div>;
   if (!personalInfo || !testResult) return <div ref={ref}>Không có dữ liệu</div>;
 

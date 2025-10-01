@@ -667,8 +667,8 @@ const StudentResults = () => {
 
                   return (
                     <TableRow key={result._id} className="hover:bg-gray-50">
-                      <TableCell className="font-medium">{result.name}</TableCell>
-                      <TableCell>{result.class}</TableCell>
+                      <TableCell className="font-medium max-w-[200px] truncate">{result.name}</TableCell>
+                      <TableCell className="max-w-[100px] truncate">{result.class}</TableCell>
                       <TableCell>{result.number}</TableCell>
                       <TableCell className="flex items-center justify-center space-x-1">
                         <Calendar className="h-4 w-4" />

@@ -29,6 +29,7 @@ import {
   CommandItem
 } from "@/components/ui/command";
 import { ChevronsUpDown } from "lucide-react";
+import { processTopGroups } from '@/utils/processTopGroups';
 
 
 interface PersonalInfo {
@@ -128,50 +129,15 @@ const HollandTest = () => {
       setApiError('');
 
       try {
-        let student = await apiService.getStudentById(id);
-        student = student.data; // vì BE trả về { success, student }
-        // ---- 1️⃣ Sắp xếp giảm dần ----
-        const sorted = Object.entries(student.hollandScores || {})
-          .map(([k, v]) => [k as keyof HollandScores, Number(v)])
-          .sort((a, b) => b[1] - a[1]);
+        let res = await apiService.getStudentById(id);
+        const student = res.data.student; // BE trả về { success, student }
 
-        // ---- 2️⃣ Gom bucket theo điểm ----
-        const buckets: { score: number; types: string[] }[] = [];
-        for (let i = 0; i < sorted.length;) {
-          const score = sorted[i][1];
-          const types: string[] = [];
-          while (i < sorted.length && sorted[i][1] === score) {
-            types.push(sorted[i][0]);
-            i++;
-          }
-          buckets.push({ score, types });
-        }
+        // ---- Áp dụng rule BE để tính topGroups ----
+        const topGroups: TopGroup[] = processTopGroups(student.hollandScores || {});
 
-        // ---- 3️⃣ Áp dụng quy tắc BE ----
-        let topGroups: { type: keyof HollandScores; score: number }[] = [];
-        if (buckets.length > 0) {
-          const maxBucket = buckets[0];
-          if (
-            maxBucket.types.length >= 4 ||
-            (buckets.length === 1 && maxBucket.types.length === 6)
-          ) {
-            topGroups = [];
-          } else {
-            const included: { type: keyof HollandScores; score: number }[] = [];
-            for (const b of buckets) {
-              if (included.length + b.types.length <= 3) {
-                b.types.forEach(t =>
-                  included.push({ type: t as keyof HollandScores, score: b.score })
-                );
-              } else break;
-            }
-            topGroups = included;
-          }
-        }
-
-        // ---- 4️⃣ Gán vào state ----
+        // ---- Gán vào state ----
         const result: TestResult = {
-          topThreeTypes: topGroups,
+          topThreeTypes: topGroups,   // giữ nguyên tên field để không ảnh hưởng chỗ khác
           compatibleMajors: student.recommendedMajors || [],
           selectedBlocks: student.selectedBlocks || [],
           scores: student.scores || [],
@@ -204,8 +170,7 @@ const HollandTest = () => {
     };
 
     fetchStudent();
-
-  }, [id]); // ✅ chỉ phụ thuộc vào id
+  }, [id]);
 
 
 
@@ -217,17 +182,55 @@ const HollandTest = () => {
 
 
   const handlePersonalInfoNext = () => {
-    if (personalInfo.name.toLocaleLowerCase() === "admin" && personalInfo.class.toLocaleLowerCase() === "admin") {
-
+    if (
+      personalInfo.name.toLocaleLowerCase() === "admin" &&
+      personalInfo.class.toLocaleLowerCase() === "admin"
+    ) {
       navigate('/admin');
       return;
     }
 
-    if (!personalInfo.name.trim() || !personalInfo.class.trim() || !personalInfo.number || personalInfo.number <= 0 || !personalInfo.university.trim() || !personalInfo.major.trim()) {
+    // 🔎 kiểm tra rỗng trước
+    if (
+      !personalInfo.name.trim() ||
+      !personalInfo.class.trim() ||
+      !personalInfo.number ||
+      personalInfo.number <= 0 ||
+      !personalInfo.university.trim() ||
+      !personalInfo.major.trim()
+    ) {
       toast({
         title: "Thông tin chưa đầy đủ",
         description: "Vui lòng điền đầy đủ thông tin cá nhân trước khi tiếp tục.",
-        variant: "destructive"
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 🔎 kiểm tra độ dài
+    if (personalInfo.name.length > 50) {
+      toast({
+        title: "Tên quá dài",
+        description: "Tên không được vượt quá 50 ký tự.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (personalInfo.class.length > 10) {
+      toast({
+        title: "Lớp không hợp lệ",
+        description: "Tên lớp không được vượt quá 10 ký tự.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (personalInfo.number > 999) {
+      toast({
+        title: "Danh số không hợp lệ",
+        description: "Danh số chỉ được tối đa 3 chữ số.",
+        variant: "destructive",
       });
       return;
     }
@@ -236,15 +239,14 @@ const HollandTest = () => {
       toast({
         title: "Dữ liệu chưa sẵn sàng",
         description: "Vui lòng đợi tải câu hỏi hoàn tất.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
-
-
     setStep(2);
   };
+
 
   const handleAnswerChange = (questionId: number, checked: boolean) => {
     setTestAnswers(prev => ({
@@ -589,12 +591,16 @@ const HollandTest = () => {
             <Input
               id="name"
               value={personalInfo.name}
-              onChange={e =>
-                setPersonalInfo(prev => ({ ...prev, name: e.target.value }))
-              }
+              onChange={e => {
+                const raw = e.target.value;
+                // Giới hạn tối đa 50 ký tự
+                const limited = raw.slice(0, 50);
+                setPersonalInfo(prev => ({ ...prev, name: limited }));
+              }}
               placeholder="Nhập họ và tên của bạn"
               className="h-12 text-base"
               autoFocus
+              maxLength={50}
             />
           </div>
 
@@ -608,7 +614,8 @@ const HollandTest = () => {
                 // Chuyển về chữ thường và bỏ các số 0 đứng trước số khác
                 const normalized = raw
                   .toUpperCase()                 // 12A01 -> 12a01
-                  .replace(/0+(\d)/g, '$1');     // bỏ 0 đứng trước số: 12a01 -> 12a1
+                  .replace(/0+(\d)/g, '$1')    // bỏ 0 đứng trước số: 12a01 -> 12a1
+                  .slice(0, 10);
                 setPersonalInfo(prev => ({ ...prev, class: normalized }));
               }}
               placeholder="Nhập lớp của bạn (VD: 12A1)"
@@ -623,17 +630,17 @@ const HollandTest = () => {
               // 🔑 chỉ nguyên
               value={personalInfo.number ?? ''}     // vẫn hiển thị rỗng nếu undefined
               onChange={e => {
-                setPersonalInfo(prev => ({
-                  ...prev,
-                  number: Math.max(0, parseInt(e.target.value || '0', 10)) // ép nguyên & không âm
-                }))
-              }
-              }
+                let num = parseInt(e.target.value || '0', 10);
+                if (isNaN(num)) num = 0;
+                if (num > 999) num = 999; // giới hạn 3 chữ số
+                setPersonalInfo(prev => ({ ...prev, number: num }));
+              }}
               placeholder="Nhập danh số của bạn"
               className="h-12 text-base"
               onKeyDown={e => {
                 if (e.key === 'Enter') handlePersonalInfoNext();
               }}
+              maxLength={3}
             />
           </div>
 
@@ -685,8 +692,12 @@ const HollandTest = () => {
               <Input
                 id="major"
                 value={personalInfo.major}
-                onChange={(e) =>
-                  setPersonalInfo((prev) => ({ ...prev, major: e.target.value }))
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  // Giới hạn tối đa 50 ký tự
+                  const limited = raw.slice(0, 80);
+                  setPersonalInfo(prev => ({ ...prev, major: limited }));
+                }
                 }
                 placeholder="Nhập ngành học (VD: Công nghệ thông tin)"
                 className="h-12 text-base"
