@@ -43,6 +43,7 @@ import { useNavigate } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
 import ResultPDF from './ResultStep';
 import * as XLSX from 'xlsx';
+import { cursorTo } from 'readline';
 
 
 
@@ -90,7 +91,9 @@ const StudentResults = () => {
         variant: 'destructive'
       });
     } finally {
-      setLoading(false);
+      setTimeout(() => {
+        setLoading(false);
+      }, 500);
     }
   }, []);
 
@@ -188,7 +191,7 @@ const StudentResults = () => {
       setIsSearching(true);
 
       // tạo object mới với page mới
-      const filters = { ...searchFilters, page: pageNum, limit: 10000000 };
+      const filters = { ...searchFilters, page: pageNum, limit: 5 };
       console.log(filters);
 
       const response = await adminApiService.searchStudentResults(filters);
@@ -851,9 +854,11 @@ const StudentResults = () => {
           <PaginationContent>
             <PaginationItem>
               <PaginationPrevious
-                className={(
-                  pagination.page === 1 && "pointer-events-none opacity-50"
-                )} onClick={() => {
+                className={[
+                  "cursor-pointer",
+                  pagination.page === 1 ? "pointer-events-none opacity-50" : ""
+                ].join(" ")}
+                onClick={() => {
                   if (isSearching) {
                     handleSearch(pagination.page - 1);
                   } else {
@@ -872,9 +877,10 @@ const StudentResults = () => {
                     fetchResults(pagination.page + 1)
                   }
                 }}
-                className={(
-                  pagination.page === pagination.totalPages && "pointer-events-none opacity-50"
-                )}
+                className={[
+                  "cursor-pointer",
+                  pagination.page === pagination.totalPages ? "pointer-events-none opacity-50" : ""
+                ].join(" ")}
               />
             </PaginationItem>
           </PaginationContent>
