@@ -754,6 +754,12 @@ const StudentResults = () => {
             {selectedStudent && (
               <div className="space-y-3 text-sm overflow-y-auto max-h-[70vh]">
                 <p><strong>Số báo danh:</strong> {selectedStudent.number}</p>
+                <p><strong>Niên khóa: </strong>
+                  {selectedStudent.schoolYear
+                    ? `${selectedStudent.schoolYear}-${Number(selectedStudent.schoolYear) + 1}`
+                    : ""}
+                </p>
+
                 <p><strong>Ngày test:</strong> {formatDateTime(selectedStudent.createdAt)}</p>
                 {selectedStudent.selectedBlocks && selectedStudent.selectedBlocks.length > 0 && (
                   <div>

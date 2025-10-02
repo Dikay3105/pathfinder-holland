@@ -58,13 +58,16 @@ const ResultPDF = forwardRef<HTMLDivElement, ResultPDFProps>(({ studentId }, ref
         });
 
         setTestResult({
-          topGroups,                           // ✅ thay vì topThree
+          topThreeTypes: topGroups,                           // ✅ thay vì topThree
           compatibleMajors: s.recommendedMajors || [],
           selectedBlocks: s.selectedBlocks || [],
           scores: s.scores || [],
           recommendationText: s.recommendationText,
           advice: s.advice
         });
+        console.log("Scores:", s.hollandScores);
+        console.log("TopGroups FE:", processTopGroups(s.hollandScores || {}));
+
       } catch (err) {
         console.error("Fetch student failed", err);
       } finally {

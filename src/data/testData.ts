@@ -258,107 +258,56 @@ export const majorsData: Major[] = [
 ];
 
 export const testBlocks: TestBlock[] = [
-  {
-    id: "A00",
-    name: "Khối A00 (Toán, Lý, Hóa)",
-    majors: majorsData.filter(m => m.examBlocks.includes("A00"))
-  },
-  {
-    id: "A01",
-    name: "Khối A01 (Toán, Lý, Anh)",
-    majors: majorsData.filter(m => m.examBlocks.includes("A01"))
-  },
-  {
-    id: "B00",
-    name: "Khối B00 (Toán, Hóa, Sinh)",
-    majors: majorsData.filter(m => m.examBlocks.includes("B00"))
-  },
-  {
-    id: "C00",
-    name: "Khối C00 (Văn, Sử, Địa)",
-    majors: majorsData.filter(m => m.examBlocks.includes("C00"))
-  },
-  {
-    id: "C01",
-    name: "Khối C01 (Văn, Toán, Lý)",
-    majors: majorsData.filter(m => m.examBlocks.includes("C01"))
-  },
-  {
-    id: "C03",
-    name: "Khối C03 (Văn, Toán, Sử)",
-    majors: majorsData.filter(m => m.examBlocks.includes("C03"))
-  },
-  {
-    id: "C08",
-    name: "Khối C08 (Văn, Hóa, Sinh)",
-    majors: majorsData.filter(m => m.examBlocks.includes("C08"))
-  },
-  {
-    id: "C14",
-    name: "Khối C14 (Văn, Toán, GDCD)",
-    majors: majorsData.filter(m => m.examBlocks.includes("C14"))
-  },
-  {
-    id: "D01",
-    name: "Khối D01 (Toán, Văn, Anh)",
-    majors: majorsData.filter(m => m.examBlocks.includes("D01"))
-  },
-  {
-    id: "D07",
-    name: "Khối D07 (Toán, Hóa, Anh)",
-    majors: majorsData.filter(m => m.examBlocks.includes("D07"))
-  },
-  {
-    id: "D08",
-    name: "Khối D08 (Toán, Sinh, Anh)",
-    majors: majorsData.filter(m => m.examBlocks.includes("D08"))
-  },
-  {
-    id: "D09",
-    name: "Khối D09 (Toán, Sử, Anh)",
-    majors: majorsData.filter(m => m.examBlocks.includes("D09"))
-  },
-  {
-    id: "D14",
-    name: "Khối D14 (Văn, Sử, Anh)",
-    majors: majorsData.filter(m => m.examBlocks.includes("D14"))
-  },
-  {
-    id: "D15",
-    name: "Khối D15 (Văn, Địa, Anh)",
-    majors: majorsData.filter(m => m.examBlocks.includes("D15"))
-  },
-  {
-    id: "D17",
-    name: "Khối D17 (Toán, Địa, Anh)",
-    majors: majorsData.filter(m => m.examBlocks.includes("D17"))
-  },
-  {
-    id: "H00",
-    name: "Khối H00 (Văn, Năng khiếu Vẽ, Hình họa)",
-    majors: majorsData.filter(m => m.examBlocks.includes("H00"))
-  },
-  {
-    id: "H01",
-    name: "Khối H01 (Toán, Văn, Năng khiếu Vẽ)",
-    majors: majorsData.filter(m => m.examBlocks.includes("H01"))
-  },
-  {
-    id: "R00",
-    name: "Khối R00 (Thanh nhạc 1, Thanh nhạc 2, Văn)",
-    majors: majorsData.filter(m => m.examBlocks.includes("R00"))
-  },
-  {
-    id: "V00",
-    name: "Khối V00 (Toán, Lý, Năng khiếu Vẽ)",
-    majors: majorsData.filter(m => m.examBlocks.includes("V00"))
-  },
-  {
-    id: "V01",
-    name: "Khối V01 (Toán, Văn, Năng khiếu Vẽ)",
-    majors: majorsData.filter(m => m.examBlocks.includes("V01"))
-  }
-];
+  { id: "A00", name: "Khối A00 (Toán, Lý, Hóa)", majors: majorsData.filter(m => m.examBlocks.includes("A00")) },
+  { id: "A01", name: "Khối A01 (Toán, Lý, Anh)", majors: majorsData.filter(m => m.examBlocks.includes("A01")) },
+  { id: "A02", name: "Khối A02 (Toán, Lý, Sinh)", majors: majorsData.filter(m => m.examBlocks.includes("A02")) },
+  { id: "A03", name: "Khối A03 (Toán, Lý, Sử)", majors: majorsData.filter(m => m.examBlocks.includes("A03")) },
+  { id: "A04", name: "Khối A04 (Toán, Lý, Địa)", majors: majorsData.filter(m => m.examBlocks.includes("A04")) },
+  { id: "A05", name: "Khối A05 (Toán, Hóa, Sử)", majors: majorsData.filter(m => m.examBlocks.includes("A05")) },
+  { id: "A06", name: "Khối A06 (Toán, Hóa, Địa)", majors: majorsData.filter(m => m.examBlocks.includes("A06")) },
+  { id: "A07", name: "Khối A07 (Toán, Sử, Địa)", majors: majorsData.filter(m => m.examBlocks.includes("A07")) },
+  { id: "A08", name: "Khối A08 (Toán, Sử, GD Kinh tế & Pháp luật)", majors: majorsData.filter(m => m.examBlocks.includes("A08")) },
+  { id: "A09", name: "Khối A09 (Toán, Địa, GD Kinh tế & Pháp luật)", majors: majorsData.filter(m => m.examBlocks.includes("A09")) },
+  { id: "A10", name: "Khối A10 (Toán, Lý, GD Kinh tế & Pháp luật)", majors: majorsData.filter(m => m.examBlocks.includes("A10")) },
+  { id: "A11", name: "Khối A11 (Toán, Hóa, GD Kinh tế & Pháp luật)", majors: majorsData.filter(m => m.examBlocks.includes("A11")) },
+
+  { id: "B00", name: "Khối B00 (Toán, Hóa, Sinh)", majors: majorsData.filter(m => m.examBlocks.includes("B00")) },
+  { id: "B01", name: "Khối B01 (Toán, Sử, Sinh)", majors: majorsData.filter(m => m.examBlocks.includes("B01")) },
+  { id: "B02", name: "Khối B02 (Toán, Địa, Sinh)", majors: majorsData.filter(m => m.examBlocks.includes("B02")) },
+  { id: "B03", name: "Khối B03 (Toán, Văn, Sinh)", majors: majorsData.filter(m => m.examBlocks.includes("B03")) },
+  { id: "B08", name: "Khối B08 (Toán, Anh, Sinh)", majors: majorsData.filter(m => m.examBlocks.includes("B08")) },
+
+  { id: "C00", name: "Khối C00 (Văn, Sử, Địa)", majors: majorsData.filter(m => m.examBlocks.includes("C00")) },
+  { id: "C01", name: "Khối C01 (Văn, Toán, Lý)", majors: majorsData.filter(m => m.examBlocks.includes("C01")) },
+  { id: "C02", name: "Khối C02 (Văn, Toán, Hóa)", majors: majorsData.filter(m => m.examBlocks.includes("C02")) },
+  { id: "C03", name: "Khối C03 (Văn, Toán, Sử)", majors: majorsData.filter(m => m.examBlocks.includes("C03")) },
+  { id: "C04", name: "Khối C04 (Văn, Toán, Địa)", majors: majorsData.filter(m => m.examBlocks.includes("C04")) },
+  { id: "C05", name: "Khối C05 (Văn, Lý, Hóa)", majors: majorsData.filter(m => m.examBlocks.includes("C05")) },
+  { id: "C06", name: "Khối C06 (Văn, Lý, Sinh)", majors: majorsData.filter(m => m.examBlocks.includes("C06")) },
+  { id: "C07", name: "Khối C07 (Văn, Lý, Sử)", majors: majorsData.filter(m => m.examBlocks.includes("C07")) },
+  { id: "C08", name: "Khối C08 (Văn, Hóa, Sinh)", majors: majorsData.filter(m => m.examBlocks.includes("C08")) },
+  { id: "C09", name: "Khối C09 (Văn, Lý, Địa)", majors: majorsData.filter(m => m.examBlocks.includes("C09")) },
+  { id: "C10", name: "Khối C10 (Văn, Hóa, Sử)", majors: majorsData.filter(m => m.examBlocks.includes("C10")) },
+  { id: "C12", name: "Khối C12 (Văn, Sinh, Sử)", majors: majorsData.filter(m => m.examBlocks.includes("C12")) },
+  { id: "C13", name: "Khối C13 (Văn, Sinh, Địa)", majors: majorsData.filter(m => m.examBlocks.includes("C13")) },
+  { id: "C14", name: "Khối C14 (Văn, Toán, GD Kinh tế & Pháp luật)", majors: majorsData.filter(m => m.examBlocks.includes("C14")) },
+  { id: "C16", name: "Khối C16 (Văn, Lý, GD Kinh tế & Pháp luật)", majors: majorsData.filter(m => m.examBlocks.includes("C16")) },
+  { id: "C17", name: "Khối C17 (Văn, Hóa, GD Kinh tế & Pháp luật)", majors: majorsData.filter(m => m.examBlocks.includes("C17")) },
+  { id: "C19", name: "Khối C19 (Văn, Sử, GD Kinh tế & Pháp luật)", majors: majorsData.filter(m => m.examBlocks.includes("C19")) },
+
+  { id: "D01", name: "Khối D01 (Toán, Văn, Anh)", majors: majorsData.filter(m => m.examBlocks.includes("D01")) },
+  { id: "D07", name: "Khối D07 (Toán, Hóa, Anh)", majors: majorsData.filter(m => m.examBlocks.includes("D07")) },
+  { id: "D08", name: "Khối D08 (Toán, Sinh, Anh)", majors: majorsData.filter(m => m.examBlocks.includes("D08")) },
+  { id: "D09", name: "Khối D09 (Toán, Anh, Sử)", majors: majorsData.filter(m => m.examBlocks.includes("D09")) },
+  { id: "D10", name: "Khối D10 (Toán, Địa, Anh)", majors: majorsData.filter(m => m.examBlocks.includes("D10")) },
+  { id: "D12", name: "Khối D12 (Văn, Hóa, Anh)", majors: majorsData.filter(m => m.examBlocks.includes("D12")) },
+  { id: "D13", name: "Khối D13 (Văn, Sinh, Anh)", majors: majorsData.filter(m => m.examBlocks.includes("D13")) },
+  { id: "D14", name: "Khối D14 (Văn, Sử, Anh)", majors: majorsData.filter(m => m.examBlocks.includes("D14")) },
+  { id: "D15", name: "Khối D15 (Văn, Địa, Anh)", majors: majorsData.filter(m => m.examBlocks.includes("D15")) },
+  { id: "D66", name: "Khối D66 (Văn, GD Kinh tế & Pháp luật, Anh)", majors: majorsData.filter(m => m.examBlocks.includes("D66")) },
+  { id: "D84", name: "Khối D84 (Toán, GD Kinh tế & Pháp luật, Anh)", majors: majorsData.filter(m => m.examBlocks.includes("D84")) }
+]
+  ;
 
 
 export interface HollandQuestion {
