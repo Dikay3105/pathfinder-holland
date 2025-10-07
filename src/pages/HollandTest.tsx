@@ -611,16 +611,22 @@ const HollandTest = () => {
               value={personalInfo.class}
               onChange={e => {
                 const raw = e.target.value;
-                // Chuyển về chữ thường và bỏ các số 0 đứng trước số khác
-                const normalized = raw
-                  .toUpperCase()                 // 12A01 -> 12a01
-                  .replace(/0+(\d)/g, '$1')    // bỏ 0 đứng trước số: 12a01 -> 12a1
-                  .slice(0, 10);
+
+                // 🔹 Chỉ giữ lại ký tự chữ cái và số (bỏ các ký tự đặc biệt như mũ, khoảng trắng...)
+                const cleaned = raw
+                  .normalize("NFKD")                 // chuẩn hóa để tách các ký tự Unicode đặc biệt
+                  .replace(/[^\w]/g, '')             // chỉ giữ chữ và số
+                  .toUpperCase();                    // chuyển hết thành in hoa
+
+                // 🔹 Bỏ các số 0 thừa (như 12A01 -> 12A1)
+                const normalized = cleaned.replace(/0+(\d)/g, '$1').slice(0, 10);
+
                 setPersonalInfo(prev => ({ ...prev, class: normalized }));
               }}
               placeholder="Nhập lớp của bạn (VD: 12A1)"
               className="h-12 text-base"
             />
+
           </div>
 
           <div className="space-y-2">
