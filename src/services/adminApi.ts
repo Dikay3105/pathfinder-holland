@@ -81,6 +81,7 @@ export interface SearchFilters {
   dateTo?: string;
   page?: number;
   limit?: number;
+  schoolYear?: number;
 }
 
 // Mock Data - Replace with actual API calls
@@ -331,6 +332,7 @@ export const adminApiService = {
         dateTo: filters.dateTo ?? '',
         page: String(filters.page ?? 1),
         limit: String(filters.limit ?? 10),
+        schoolYear: filters.schoolYear ? String(filters.schoolYear) : '',
       }).toString();
 
       const res = await fetch(ADMIN_API_ENDPOINTS.SEARCH_STUDENT_RESULTS + `?${queryString}`, {

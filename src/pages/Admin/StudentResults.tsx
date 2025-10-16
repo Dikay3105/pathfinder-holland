@@ -58,6 +58,7 @@ const StudentResults = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [classes, setClasses] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
+  const [selectedSchoolYear, setSelectedSchoolYear] = useState<Number>(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [downloadType, setDownloadType] = useState<'pdf' | 'excel'>('pdf');
 
@@ -72,6 +73,7 @@ const StudentResults = () => {
     studentNumber: '',
     dateFrom: '',
     dateTo: '',
+    schoolYear: 0,
     page: 1,
     limit: 5
   });
@@ -82,7 +84,7 @@ const StudentResults = () => {
 
   useEffect(() => {
     try {
-      setLoading(true);
+      // setLoading(true);
       fetchResults();
     } catch (error) {
       toast({
@@ -91,9 +93,9 @@ const StudentResults = () => {
         variant: 'destructive'
       });
     } finally {
-      setTimeout(() => {
-        setLoading(false);
-      }, 500);
+      // setTimeout(() => {
+      //   setLoading(false);
+      // }, 500);
     }
   }, []);
 
@@ -120,14 +122,15 @@ const StudentResults = () => {
   };
 
   const handleDownload = () => {
-    if (!selectedClass) return toast({ title: 'Lỗi', description: 'Chưa chọn lớp', variant: 'destructive' });
+    if (!selectedClass || selectedSchoolYear === 0) return toast({ title: 'Lỗi', description: 'Chưa chọn đủ thông tin', variant: 'destructive' });
 
     setDialogOpen(false);
 
     if (downloadType === 'pdf') {
-      downloadPDFByClass(selectedClass);
+      // console.log('Download PDF for class', selectedClass, 'school year', selectedSchoolYear);
+      downloadPDFByClass(selectedClass, selectedSchoolYear);
     } else {
-      downloadExcelByClass(selectedClass);
+      downloadExcelByClass(selectedClass, selectedSchoolYear);
     }
   };
 
@@ -166,7 +169,7 @@ const StudentResults = () => {
 
   const fetchResults = async (page: number = 1) => {
     try {
-      // setLoading(true);
+      setLoading(true);
       const data = await adminApiService.getStudentResults(page);
       setResults(data.results);
       setPagination({
@@ -181,22 +184,34 @@ const StudentResults = () => {
         variant: 'destructive'
       });
     } finally {
-      // setLoading(false);
+      setLoading(false);
     }
   };
 
   const handleSearch = async (pageNum: number) => {
     try {
+      setResults([]); // xóa kết quả cũ
       setSearchLoading(true);
       setIsSearching(true);
 
       // tạo object mới với page mới
       const filters = { ...searchFilters, page: pageNum, limit: 5 };
+      if (filters.schoolYear === 0) {
+        delete filters.schoolYear; // xóa trường schoolYear nếu là 0 để tìm tất cả
+      }
       console.log(filters);
 
       const response = await adminApiService.searchStudentResults(filters);
 
       setResults(response.results);
+      if (response.results.length === 0) {
+        setPagination({
+          total: 0,
+          page: 0,
+          totalPages: 0,
+        });
+        return;
+      }
       // console.log(response);
       setPagination({
         total: response.total,
@@ -214,11 +229,12 @@ const StudentResults = () => {
       });
     } finally {
       setSearchLoading(false);
+      setIsSearching(false);
     }
   };
 
   // --- Tải PDF theo lớp ---
-  const downloadPDFByClass = async (className?: string) => {
+  const downloadPDFByClass = async (className?: string, schoolYear?: number) => {
     if (!className) return toast({ title: 'Lỗi', description: 'Chưa chọn lớp', variant: 'destructive' });
 
     try {
@@ -228,6 +244,7 @@ const StudentResults = () => {
       const response = await adminApiService.searchStudentResults({
         ...searchFilters,
         studentClass: className,
+        schoolYear: schoolYear ? Number(schoolYear) : 0,
         page: 1,
         limit: 100000, // lấy tất cả
       });
@@ -270,7 +287,7 @@ const StudentResults = () => {
   };
 
   // --- Tải Excel theo lớp ---
-  const downloadExcelByClass = async (className?: string) => {
+  const downloadExcelByClass = async (className?: string, schoolYear?: number) => {
     if (!className)
       return toast({ title: 'Lỗi', description: 'Chưa chọn lớp', variant: 'destructive' });
 
@@ -283,6 +300,7 @@ const StudentResults = () => {
         dateFrom: '',
         dateTo: '',
         studentClass: className,
+        schoolYear: schoolYear ? Number(schoolYear) : 0,
         page: 1,
         limit: 100000,
       });
@@ -540,7 +558,7 @@ const StudentResults = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
               <div>
                 <Label htmlFor="studentName">Tên học sinh</Label>
                 <Input
@@ -550,6 +568,7 @@ const StudentResults = () => {
                   placeholder="Nhập tên học sinh"
                 />
               </div>
+
               <div>
                 <Label htmlFor="studentClass">Lớp</Label>
                 <Input
@@ -559,6 +578,7 @@ const StudentResults = () => {
                   placeholder="VD: 12A1"
                 />
               </div>
+
               <div>
                 <Label htmlFor="studentNumber">Số báo danh</Label>
                 <Input
@@ -568,6 +588,7 @@ const StudentResults = () => {
                   placeholder="VD: 1, 2, 3,..."
                 />
               </div>
+
               <div>
                 <Label htmlFor="dateFrom">Từ ngày</Label>
                 <Input
@@ -577,6 +598,7 @@ const StudentResults = () => {
                   onChange={(e) => setSearchFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
                 />
               </div>
+
               <div>
                 <Label htmlFor="dateTo">Đến ngày</Label>
                 <Input
@@ -586,7 +608,35 @@ const StudentResults = () => {
                   onChange={(e) => setSearchFilters(prev => ({ ...prev, dateTo: e.target.value }))}
                 />
               </div>
+
+              {/* 🆕 Niên khóa */}
+              <div>
+                <Label htmlFor="schoolYear">Niên khóa</Label>
+                <select
+                  id="schoolYear"
+                  className="w-full border rounded px-2 py-2"
+                  value={searchFilters.schoolYear ?? ""}
+                  onChange={(e) =>
+                    setSearchFilters(prev => ({
+                      ...prev,
+                      schoolYear: e.target.value === "" ? 2025 : Number(e.target.value)
+                    }))
+                  }
+                >
+                  <option value={0}>Tất cả</option>
+                  {Array.from({ length: 8 }).map((_, i) => {
+                    const startYear = 2025 + i;
+                    const endYear = startYear + 1;
+                    return (
+                      <option key={i} value={startYear}>
+                        {startYear}-{endYear}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
             </div>
+
             <div className="flex flex-wrap gap-2">
               {/* Tìm kiếm */}
               <Button
@@ -609,6 +659,7 @@ const StudentResults = () => {
                     studentNumber: '',
                     dateFrom: '',
                     dateTo: '',
+                    schoolYear: 0,
                     page: 1,
                     limit: 10
                   });
@@ -616,25 +667,27 @@ const StudentResults = () => {
                   fetchResults();
                 }}
               >
-                Xóa bộ lọc
+                Refresh
               </Button>
 
-              {/* Tải Excel theo lớp */}
+              {/* Tải Excel */}
               <Button
                 className="flex-1 min-w-[120px] bg-blue-500 hover:bg-blue-600 text-white shadow-md"
-                onClick={() => { setDownloadType('excel'); setDialogOpen(true); }}              >
+                onClick={() => { setDownloadType('excel'); setDialogOpen(true); }}
+              >
                 Tải Excel theo lớp
               </Button>
 
-              {/* Tải PDF theo lớp */}
+              {/* Tải PDF */}
               <Button
                 className="flex-1 min-w-[120px] bg-purple-500 hover:bg-purple-600 text-white shadow-md"
-                onClick={() => { setDownloadType('pdf'); setDialogOpen(true); }}              >
+                onClick={() => { setDownloadType('pdf'); setDialogOpen(true); }}
+              >
                 Tải PDF theo lớp
               </Button>
             </div>
-
           </CardContent>
+
         </Card>
 
         {/* Results Table */}
@@ -733,12 +786,18 @@ const StudentResults = () => {
               </TableBody>
             </Table>
 
-            {results.length === 0 && (
+            {isSearching ? (
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">Đang tìm kết quả...</p>
+              </div>
+            ) : results.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">Không có kết quả nào</p>
               </div>
-            )}
+            ) : null}
+
           </CardContent>
 
         </Card>
@@ -825,20 +884,23 @@ const StudentResults = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Dialog chọn lớp */}
+        {/* Dialog chọn lớp và niên khóa */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Chọn lớp để tải {downloadType === 'pdf' ? 'PDF' : 'Excel'}</DialogTitle>
+              <DialogTitle>
+                Chọn lớp và niên khóa để tải {downloadType === 'pdf' ? 'PDF' : 'Excel'}
+              </DialogTitle>
               <DialogDescription>
-                Vui lòng chọn lớp bạn muốn tải kết quả
+                Vui lòng chọn lớp và niên khóa bạn muốn tải kết quả.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 mt-2">
+              {/* Chọn lớp */}
               <Label>Lớp</Label>
               <select
-                className="w-full border rounded px-2 py-1"
+                className="w-full border rounded px-2 py-1 mb-2"
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
               >
@@ -848,7 +910,22 @@ const StudentResults = () => {
                 ))}
               </select>
 
-              <div className="flex justify-end gap-2">
+              {/* Chọn niên khóa */}
+              <Label>Niên khóa</Label>
+              <select
+                className="w-full border rounded px-2 py-1"
+                value={selectedSchoolYear ?? ""}
+                onChange={(e) => setSelectedSchoolYear(e.target.value === "" ? 0 : Number(e.target.value))}
+              >
+                <option value={0}>Chọn niên khóa</option>
+                {[2025, 2026, 2027, 2028, 2029].map((year) => (
+                  <option key={year} value={year}>
+                    {year} - {year + 1}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex justify-end gap-2 mt-4">
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
                 <Button onClick={handleDownload}>Tải</Button>
               </div>
@@ -856,41 +933,59 @@ const StudentResults = () => {
           </DialogContent>
         </Dialog>
 
-        <Pagination className="mt-4">
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious
-                className={[
-                  "cursor-pointer",
-                  pagination.page === 1 ? "pointer-events-none opacity-50" : ""
-                ].join(" ")}
-                onClick={() => {
-                  if (isSearching) {
-                    handleSearch(pagination.page - 1);
-                  } else {
-                    fetchResults(pagination.page - 1)
-                  }
-                }}
-              />
-            </PaginationItem>
-            <span className="px-2">Trang {pagination.page}/{pagination.totalPages}</span>
-            <PaginationItem>
-              <PaginationNext
-                onClick={() => {
-                  if (isSearching) {
-                    handleSearch(pagination.page + 1);
-                  } else {
-                    fetchResults(pagination.page + 1)
-                  }
-                }}
-                className={[
-                  "cursor-pointer",
-                  pagination.page === pagination.totalPages ? "pointer-events-none opacity-50" : ""
-                ].join(" ")}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
+
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <Button
+            variant="ghost"
+            disabled={pagination.page === 1 || pagination.page === 0}
+            onClick={() => {
+              isSearching ? handleSearch(1) : fetchResults(1);
+            }}
+            className='no-border'
+          >
+            « Đầu
+          </Button>
+
+          <Button
+            variant="ghost"
+            disabled={pagination.page === 1 || pagination.page === 0}
+            onClick={() => {
+              if (pagination.page > 1) {
+                isSearching ? handleSearch(pagination.page - 1) : fetchResults(pagination.page - 1);
+              }
+            }}
+          >
+            ‹ Trước
+          </Button>
+
+          <span className="px-3 font-medium">
+            Trang {pagination.page}/{pagination.totalPages}
+          </span>
+
+          <Button
+            variant="ghost"
+            disabled={pagination.page === pagination.totalPages}
+            onClick={() => {
+              if (pagination.page < pagination.totalPages) {
+                isSearching ? handleSearch(pagination.page + 1) : fetchResults(pagination.page + 1);
+              }
+            }}
+          >
+            Sau ›
+          </Button>
+
+          <Button
+            variant="ghost"
+            disabled={pagination.page === pagination.totalPages}
+            onClick={() => {
+              isSearching ? handleSearch(pagination.totalPages) : fetchResults(pagination.totalPages);
+            }}
+          >
+            Cuối »
+          </Button>
+        </div>
+
+
 
       </main>
 
