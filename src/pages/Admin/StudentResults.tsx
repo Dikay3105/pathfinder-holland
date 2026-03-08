@@ -73,7 +73,7 @@ const StudentResults = () => {
     studentNumber: '',
     dateFrom: '',
     dateTo: '',
-    schoolYear: 0,
+    schoolYear: '',
     page: 1,
     limit: 5
   });
@@ -232,6 +232,20 @@ const StudentResults = () => {
       setIsSearching(false);
     }
   };
+
+  // Helper function (có thể đặt trong utils hoặc component)
+  const getCurrentSchoolYear = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1; // 0-11 -> 1-12
+
+    if (month >= 8) {
+      return `${year}-${year + 1}`;
+    }
+    return `${year - 1}-${year}`;
+  };
+
+  const currentYear = getCurrentSchoolYear();
 
   // --- Tải PDF theo lớp ---
   const downloadPDFByClass = async (className?: string, schoolYear?: number) => {
@@ -610,26 +624,44 @@ const StudentResults = () => {
               </div>
 
               {/* 🆕 Niên khóa */}
+
+
               <div>
                 <Label htmlFor="schoolYear">Niên khóa</Label>
                 <select
                   id="schoolYear"
-                  className="w-full border rounded px-2 py-2"
+                  className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={searchFilters.schoolYear ?? ""}
-                  onChange={(e) =>
-                    setSearchFilters(prev => ({
+                  onChange={(e) => {
+                    setSearchFilters((prev) => ({
                       ...prev,
-                      schoolYear: e.target.value === "" ? 2025 : Number(e.target.value)
-                    }))
-                  }
+                      schoolYear: e.target.value,
+                    }));
+                  }}
                 >
-                  <option value={0}>Tất cả</option>
-                  {Array.from({ length: 8 }).map((_, i) => {
+                  <option value="">Tất cả niên khóa</option>
+
+                  {/* Bắt đầu từ 2025-2026 và kéo dài 10 năm sau (có thể tăng/giảm length) */}
+                  {Array.from({ length: 11 }).map((_, i) => {
                     const startYear = 2025 + i;
                     const endYear = startYear + 1;
+                    const yearString = `${startYear}-${endYear}`;
+
+                    // Tính niên khóa hiện tại để highlight (giống backend)
+                    const now = new Date();
+                    const currentYearNum = now.getFullYear();
+                    const currentMonth = now.getMonth() + 1;
+                    const currentSchoolYear = currentMonth >= 8
+                      ? `${currentYearNum}-${currentYearNum + 1}`
+                      : `${currentYearNum - 1}-${currentYearNum}`;
+
                     return (
-                      <option key={i} value={startYear}>
-                        {startYear}-{endYear}
+                      <option
+                        key={yearString}
+                        value={yearString}
+                        className={yearString === currentSchoolYear ? "font-semibold text-blue-600" : ""}
+                      >
+                        {yearString} {yearString === currentSchoolYear ? "(Hiện tại)" : ""}
                       </option>
                     );
                   })}

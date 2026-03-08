@@ -81,7 +81,7 @@ export interface SearchFilters {
   dateTo?: string;
   page?: number;
   limit?: number;
-  schoolYear?: number;
+  schoolYear?: string;
 }
 
 // Mock Data - Replace with actual API calls
