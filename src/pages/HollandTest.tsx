@@ -196,6 +196,7 @@ const HollandTest = () => {
       !personalInfo.class.trim() ||
       !personalInfo.number ||
       personalInfo.number <= 0 ||
+      personalInfo.number > 100 ||
       !personalInfo.university.trim() ||
       !personalInfo.major.trim()
     ) {
