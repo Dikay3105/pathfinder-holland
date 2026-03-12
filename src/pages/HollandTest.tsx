@@ -187,6 +187,7 @@ const HollandTest = () => {
       personalInfo.class.toLocaleLowerCase() === "admin"
     ) {
       navigate('/admin');
+      localStorage.setItem("token", "true");
       return;
     }
 
@@ -195,8 +196,6 @@ const HollandTest = () => {
       !personalInfo.name.trim() ||
       !personalInfo.class.trim() ||
       !personalInfo.number ||
-      personalInfo.number <= 0 ||
-      personalInfo.number > 100 ||
       !personalInfo.university.trim() ||
       !personalInfo.major.trim()
     ) {
@@ -227,10 +226,10 @@ const HollandTest = () => {
       return;
     }
 
-    if (personalInfo.number > 999) {
+    if (personalInfo.number > 100 || personalInfo.number < 1) {
       toast({
         title: "Danh số không hợp lệ",
-        description: "Danh số chỉ được tối đa 3 chữ số.",
+        description: "Danh số chỉ được tối đa 2 chữ số và lớn hơn 0.",
         variant: "destructive",
       });
       return;
