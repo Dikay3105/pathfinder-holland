@@ -129,6 +129,12 @@ All colors MUST be HSL.
   }
 }
 
+body {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 /* Ẩn thanh cuộn trên Webkit (Chrome, Safari) */
 .custom-scroll::-webkit-scrollbar {
   display: none;

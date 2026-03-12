@@ -847,7 +847,7 @@ const StudentResults = () => {
                 <p><strong>Số báo danh:</strong> {selectedStudent.number}</p>
                 <p><strong>Niên khóa: </strong>
                   {selectedStudent.schoolYear
-                    ? `${selectedStudent.schoolYear}-${Number(selectedStudent.schoolYear) + 1}`
+                    ? `${selectedStudent.schoolYear}`
                     : ""}
                 </p>
 
