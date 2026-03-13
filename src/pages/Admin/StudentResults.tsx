@@ -147,7 +147,7 @@ const StudentResults = () => {
               await adminApiService.deleteStudent(studentId);
 
               // cập nhật state để bảng refresh
-              setResults(prev => prev.filter(r => r._id !== studentId));
+              fetchResults(pagination.page);
               toast({
                 title: 'Thành công',
                 description: 'Đã xóa học sinh',
