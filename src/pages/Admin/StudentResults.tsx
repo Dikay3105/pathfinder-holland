@@ -58,7 +58,7 @@ const StudentResults = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [classes, setClasses] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
-  const [selectedSchoolYear, setSelectedSchoolYear] = useState<Number>(0);
+  const [selectedSchoolYear, setSelectedSchoolYear] = useState<string>('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [downloadType, setDownloadType] = useState<'pdf' | 'excel'>('pdf');
 
@@ -248,7 +248,7 @@ const StudentResults = () => {
   const currentYear = getCurrentSchoolYear();
 
   // --- Tải PDF theo lớp ---
-  const downloadPDFByClass = async (className?: string, schoolYear?: number) => {
+  const downloadPDFByClass = async (className?: string, schoolYear?: string) => {
     if (!className) return toast({ title: 'Lỗi', description: 'Chưa chọn lớp', variant: 'destructive' });
 
     try {
@@ -258,7 +258,7 @@ const StudentResults = () => {
       const response = await adminApiService.searchStudentResults({
         ...searchFilters,
         studentClass: className,
-        schoolYear: schoolYear ? Number(schoolYear) : 0,
+        schoolYear: schoolYear ? String(schoolYear) : "0",
         page: 1,
         limit: 100000, // lấy tất cả
       });
@@ -301,12 +301,14 @@ const StudentResults = () => {
   };
 
   // --- Tải Excel theo lớp ---
-  const downloadExcelByClass = async (className?: string, schoolYear?: number) => {
+  const downloadExcelByClass = async (className?: string, schoolYear?: string) => {
     if (!className)
       return toast({ title: 'Lỗi', description: 'Chưa chọn lớp', variant: 'destructive' });
 
     try {
       toast({ title: 'Đang tạo Excel', description: 'Vui lòng chờ…', variant: 'default' });
+
+      console.log(schoolYear)
 
       const response = await adminApiService.searchStudentResults({
         studentName: '',
@@ -314,7 +316,7 @@ const StudentResults = () => {
         dateFrom: '',
         dateTo: '',
         studentClass: className,
-        schoolYear: schoolYear ? Number(schoolYear) : 0,
+        schoolYear: schoolYear ? String(schoolYear) : "0",
         page: 1,
         limit: 100000,
       });
@@ -947,11 +949,11 @@ const StudentResults = () => {
               <select
                 className="w-full border rounded px-2 py-1"
                 value={selectedSchoolYear ?? ""}
-                onChange={(e) => setSelectedSchoolYear(e.target.value === "" ? 0 : Number(e.target.value))}
+                onChange={(e) => setSelectedSchoolYear(e.target.value)}
               >
-                <option value={0}>Chọn niên khóa</option>
+                <option value="">Chọn niên khóa</option>
                 {[2025, 2026, 2027, 2028, 2029].map((year) => (
-                  <option key={year} value={year}>
+                  <option key={year} value={`${year}-${year + 1}`}>
                     {year} - {year + 1}
                   </option>
                 ))}
