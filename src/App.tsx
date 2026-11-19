@@ -13,6 +13,8 @@ import ExamBlocks from "./pages/Admin/ExamBlocks";
 import HollandQuestions from "./pages/Admin/HollandQuestions";
 import Majors from "./pages/Admin/Majors";
 import StudentResults from "./pages/Admin/StudentResults";
+import OptionsManager from "./pages/Admin/OptionsManager";
+import Statistics from "./pages/Admin/Statistics";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,8 @@ const App = () => (
           <Route path="/admin/majors" element={<Majors />} />
           <Route path="/admin/student-results" element={<StudentResults />} />
           <Route path="/admin/student-results/:id" element={<HollandTest />} />
+          <Route path="/admin/options" element={<OptionsManager />} />
+          <Route path="/admin/statistics" element={<Statistics />} />
 
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

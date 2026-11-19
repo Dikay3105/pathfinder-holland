@@ -174,3 +174,10 @@ All colors MUST be HSL.
   margin-top: 0.5in;
   /* các trang sau */
 }
+/* Màu biểu đồ thống kê (một màu cho cột xếp hạng) */
+:root {
+  --viz-1: #2a78d6;
+}
+.dark {
+  --viz-1: #3987e5;
+}

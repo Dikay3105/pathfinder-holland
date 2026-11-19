@@ -43,7 +43,9 @@ import { useNavigate } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
 import ResultPDF from './ResultStep';
 import * as XLSX from 'xlsx';
-import { cursorTo } from 'readline';
+import { useRealtime } from '@/hooks/useRealtime';
+import { formatSchoolYear, getSchoolYear, getSchoolYearOptions } from '@/lib/schoolYear';
+
 
 
 
@@ -58,7 +60,7 @@ const StudentResults = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [classes, setClasses] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
-  const [selectedSchoolYear, setSelectedSchoolYear] = useState<Number>(0);
+  const [selectedSchoolYear, setSelectedSchoolYear] = useState<string>('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [downloadType, setDownloadType] = useState<'pdf' | 'excel'>('pdf');
 
@@ -81,6 +83,70 @@ const StudentResults = () => {
   const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
+
+  /* ===== Realtime: học sinh nộp bài xong → hiện ngay trong bảng ===== */
+  const [highlightIds, setHighlightIds] = useState<Set<string>>(new Set());
+  const [pendingNew, setPendingNew] = useState(0);
+
+  const flash = (id: string) => {
+    setHighlightIds(prev => new Set(prev).add(id));
+    setTimeout(() => {
+      setHighlightIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }, 8000);
+  };
+
+  const hasActiveFilters = () =>
+    Boolean(
+      searchFilters.studentName || searchFilters.studentClass || searchFilters.studentNumber ||
+      searchFilters.dateFrom || searchFilters.dateTo || searchFilters.schoolYear
+    );
+
+  const realtimeConnected = useRealtime({
+    'student:upserted': ({ created, student }: { created: boolean; student: any }) => {
+      if (!student?._id) return;
+      const exists = results.some(r => r._id === student._id);
+
+      if (exists) {
+        setResults(prev => prev.map(r => (r._id === student._id ? student : r)));
+      } else if (created && pagination.page <= 1 && !hasActiveFilters()) {
+        const limit = searchFilters.limit || 5;
+        setResults(prev => [student, ...prev].slice(0, limit));
+        setPagination(prev => {
+          const total = prev.total + 1;
+          return { ...prev, page: prev.page || 1, total, totalPages: Math.ceil(total / limit) };
+        });
+      } else {
+        setPendingNew(n => n + 1);
+      }
+
+      if (selectedStudent?._id === student._id) setSelectedStudent(student);
+      flash(student._id);
+      toast({
+        title: created ? 'Có kết quả mới' : 'Kết quả được cập nhật',
+        description: `${student.name} - lớp ${student.class} vừa hoàn thành bài test`,
+      });
+    },
+    // AI viết xong lời khuyên (chạy nền) → cập nhật dữ liệu, không bật thông báo
+    'student:advice': ({ id, advice, adviceStatus }: { id: string; advice: string; adviceStatus: string }) => {
+      setResults(prev => prev.map(r => (r._id === id ? ({ ...r, advice, adviceStatus } as any) : r)));
+      setSelectedStudent((prev: any) => (prev?._id === id ? { ...prev, advice, adviceStatus } : prev));
+    },
+    'student:deleted': ({ id }: { id: string }) => {
+      if (!results.some(r => r._id === id)) return;
+      setResults(prev => prev.filter(r => r._id !== id));
+      setPagination(prev => ({ ...prev, total: Math.max(prev.total - 1, 0) }));
+    },
+  });
+
+  const reloadAfterRealtime = () => {
+    setPendingNew(0);
+    if (hasActiveFilters()) handleSearch(1);
+    else fetchResults(1);
+  };
 
   useEffect(() => {
     try {
@@ -122,7 +188,7 @@ const StudentResults = () => {
   };
 
   const handleDownload = () => {
-    if (!selectedClass || selectedSchoolYear === 0) return toast({ title: 'Lỗi', description: 'Chưa chọn đủ thông tin', variant: 'destructive' });
+    if (!selectedClass || !selectedSchoolYear) return toast({ title: 'Lỗi', description: 'Chưa chọn đủ thông tin', variant: 'destructive' });
 
     setDialogOpen(false);
 
@@ -196,7 +262,7 @@ const StudentResults = () => {
 
       // tạo object mới với page mới
       const filters = { ...searchFilters, page: pageNum, limit: 5 };
-      if (filters.schoolYear === 0) {
+      if (!filters.schoolYear) {
         delete filters.schoolYear; // xóa trường schoolYear nếu là 0 để tìm tất cả
       }
       console.log(filters);
@@ -233,22 +299,8 @@ const StudentResults = () => {
     }
   };
 
-  // Helper function (có thể đặt trong utils hoặc component)
-  const getCurrentSchoolYear = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1; // 0-11 -> 1-12
-
-    if (month >= 8) {
-      return `${year}-${year + 1}`;
-    }
-    return `${year - 1}-${year}`;
-  };
-
-  const currentYear = getCurrentSchoolYear();
-
   // --- Tải PDF theo lớp ---
-  const downloadPDFByClass = async (className?: string, schoolYear?: number) => {
+  const downloadPDFByClass = async (className?: string, schoolYear?: string) => {
     if (!className) return toast({ title: 'Lỗi', description: 'Chưa chọn lớp', variant: 'destructive' });
 
     try {
@@ -258,7 +310,7 @@ const StudentResults = () => {
       const response = await adminApiService.searchStudentResults({
         ...searchFilters,
         studentClass: className,
-        schoolYear: schoolYear ? Number(schoolYear) : 0,
+        schoolYear: schoolYear || '',
         page: 1,
         limit: 100000, // lấy tất cả
       });
@@ -301,7 +353,7 @@ const StudentResults = () => {
   };
 
   // --- Tải Excel theo lớp ---
-  const downloadExcelByClass = async (className?: string, schoolYear?: number) => {
+  const downloadExcelByClass = async (className?: string, schoolYear?: string) => {
     if (!className)
       return toast({ title: 'Lỗi', description: 'Chưa chọn lớp', variant: 'destructive' });
 
@@ -314,7 +366,7 @@ const StudentResults = () => {
         dateFrom: '',
         dateTo: '',
         studentClass: className,
-        schoolYear: schoolYear ? Number(schoolYear) : 0,
+        schoolYear: schoolYear || '',
         page: 1,
         limit: 100000,
       });
@@ -553,7 +605,16 @@ const StudentResults = () => {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-2xl font-bold text-foreground">Kết quả Học sinh</h1>
+                <h1 className="flex items-center gap-3 text-2xl font-bold text-foreground">
+                  Kết quả Học sinh
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${realtimeConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-muted bg-muted text-muted-foreground'}`}
+                    title={realtimeConnected ? 'Kết quả mới sẽ tự hiện, không cần tải lại trang' : 'Đang kết nối lại máy chủ...'}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${realtimeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/50'}`} />
+                    {realtimeConnected ? 'Trực tiếp' : 'Đang kết nối…'}
+                  </span>
+                </h1>
                 <p className="text-muted-foreground">Xem và tải PDF kết quả bài test Holland</p>
               </div>
             </div>
@@ -641,20 +702,8 @@ const StudentResults = () => {
                 >
                   <option value="">Tất cả niên khóa</option>
 
-                  {/* Bắt đầu từ 2025-2026 và kéo dài 10 năm sau (có thể tăng/giảm length) */}
-                  {Array.from({ length: 11 }).map((_, i) => {
-                    const startYear = 2025 + i;
-                    const endYear = startYear + 1;
-                    const yearString = `${startYear}-${endYear}`;
-
-                    // Tính niên khóa hiện tại để highlight (giống backend)
-                    const now = new Date();
-                    const currentYearNum = now.getFullYear();
-                    const currentMonth = now.getMonth() + 1;
-                    const currentSchoolYear = currentMonth >= 8
-                      ? `${currentYearNum}-${currentYearNum + 1}`
-                      : `${currentYearNum - 1}-${currentYearNum}`;
-
+                  {getSchoolYearOptions().map((yearString) => {
+                    const currentSchoolYear = getSchoolYear();
                     return (
                       <option
                         key={yearString}
@@ -691,7 +740,7 @@ const StudentResults = () => {
                     studentNumber: '',
                     dateFrom: '',
                     dateTo: '',
-                    schoolYear: 0,
+                    schoolYear: '',
                     page: 1,
                     limit: 10
                   });
@@ -734,6 +783,15 @@ const StudentResults = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {pendingNew > 0 && (
+              <button
+                type="button"
+                onClick={reloadAfterRealtime}
+                className="mb-3 w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+              >
+                Có {pendingNew} kết quả mới · Bấm để tải lại danh sách
+              </button>
+            )}
             <Table className="table-auto text-center">
               <TableHeader>
                 <TableRow>
@@ -754,7 +812,10 @@ const StudentResults = () => {
                   }));
 
                   return (
-                    <TableRow key={result._id} className="hover:bg-gray-50">
+                    <TableRow
+                      key={result._id}
+                      className={`transition-colors duration-700 ${highlightIds.has(result._id) ? 'bg-emerald-50 hover:bg-emerald-100' : 'hover:bg-gray-50'}`}
+                    >
                       <TableCell className="font-medium max-w-[200px] truncate">{result.name}</TableCell>
                       <TableCell className="max-w-[100px] truncate">{result.class}</TableCell>
                       <TableCell>{result.number}</TableCell>
@@ -846,9 +907,7 @@ const StudentResults = () => {
               <div className="space-y-3 text-sm overflow-y-auto max-h-[70vh]">
                 <p><strong>Số báo danh:</strong> {selectedStudent.number}</p>
                 <p><strong>Niên khóa: </strong>
-                  {selectedStudent.schoolYear
-                    ? `${selectedStudent.schoolYear}-${Number(selectedStudent.schoolYear) + 1}`
-                    : ""}
+                  {formatSchoolYear(selectedStudent.schoolYear)}
                 </p>
 
                 <p><strong>Ngày test:</strong> {formatDateTime(selectedStudent.createdAt)}</p>
@@ -946,13 +1005,13 @@ const StudentResults = () => {
               <Label>Niên khóa</Label>
               <select
                 className="w-full border rounded px-2 py-1"
-                value={selectedSchoolYear ?? ""}
-                onChange={(e) => setSelectedSchoolYear(e.target.value === "" ? 0 : Number(e.target.value))}
+                value={selectedSchoolYear}
+                onChange={(e) => setSelectedSchoolYear(e.target.value)}
               >
-                <option value={0}>Chọn niên khóa</option>
-                {[2025, 2026, 2027, 2028, 2029].map((year) => (
+                <option value="">Chọn niên khóa</option>
+                {getSchoolYearOptions().map((year) => (
                   <option key={year} value={year}>
-                    {year} - {year + 1}
+                    {year}
                   </option>
                 ))}
               </select>

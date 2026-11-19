@@ -48,6 +48,12 @@ export interface ResultResponse {
     hollandTypes: string[];
   }>;
   recommendationText?: string;
+  topGroups?: Array<{ type: 'R' | 'I' | 'A' | 'S' | 'E' | 'C'; score: number }>;
+  /** Rỗng khi adviceStatus = 'pending' (AI đang viết ở nền) */
+  advice?: string;
+  adviceStatus?: 'pending' | 'done' | 'fallback';
+  studentId?: string;
+  student?: { _id: string; [key: string]: any };
 }
 
 // Mock data - Remove this section when connecting to real API

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { testBlocks, hollandTypeDescriptions, Major, universityNames } from '@/data/testData';
-import { BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight, Target, Loader2, Download, MessageCircle } from 'lucide-react';
+import { Check, BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight, Target, Loader2, Download, MessageCircle } from 'lucide-react';
 import { apiService, QuestionResponse, SubmitResultRequest, ResultResponse } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
@@ -15,20 +15,10 @@ import schoolLogo from '@/assets/school-logo1.png';
 import { addDejavuFont } from "../../public/fonts/DejaVuSans"; // file chứa base64 font
 import html2pdf from "html2pdf.js";
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem
-} from "@/components/ui/command";
-import { ChevronsUpDown } from "lucide-react";
+import { SearchableSelect } from '@/components/SearchableSelect';
+import { optionsApi } from '@/services/optionsApi';
+import { useRealtime } from '@/hooks/useRealtime';
+import { AdviceView } from '@/components/AdviceView';
 import { processTopGroups } from '@/utils/processTopGroups';
 
 
@@ -36,8 +26,10 @@ interface PersonalInfo {
   name: string;
   class: string;
   number: number;
-  university: string,   // mới
-  major: string     // mới
+  university: string;
+  major: string;
+  universityOther?: boolean; // true = học sinh tự nhập trường
+  majorOther?: boolean;      // true = học sinh tự nhập ngành
 }
 
 interface HollandScores {
@@ -68,6 +60,9 @@ interface TestResult {
   recommendationText?: string;
   message?: string;
   advice?: string;
+  /** pending = AI đang viết ở nền; done / fallback = đã có; timeout = chờ quá lâu */
+  adviceStatus?: 'pending' | 'done' | 'fallback' | 'timeout';
+  studentId?: string;
 }
 
 const HollandTest = () => {
@@ -77,12 +72,14 @@ const HollandTest = () => {
   const pdfRef = useRef<HTMLDivElement>(null);
   const scrollDivRef = useRef(null);
   const [step, setStep] = useState(1);
-  const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ name: '', class: '', number: '', university: '', major: '' });
+  const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ name: '', class: '', number: '', university: '', major: '', universityOther: false, majorOther: false });
   const [testAnswers, setTestAnswers] = useState<TestAnswers>({});
   const [selectedBlocks, setSelectedBlocks] = useState<string[]>([]);
   const [scores, setScores] = useState<ScoreInput[]>([]);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
-  const [open, setOpen] = React.useState(false);
+  const [universityOptions, setUniversityOptions] = useState<string[]>(universityNames);
+  const [majorOptions, setMajorOptions] = useState<string[]>([]);
+  const [optionsLoading, setOptionsLoading] = useState(true);
 
   // API related states
   const [questions, setQuestions] = useState<QuestionResponse[]>([]);
@@ -117,6 +114,62 @@ const HollandTest = () => {
     loadQuestions();
   }, []);
 
+  // Lời khuyên AI chạy nền: nhận qua realtime, kèm polling dự phòng nếu kết nối realtime rớt
+  const advicePending = testResult?.adviceStatus === 'pending' && !!testResult?.studentId;
+  const applyAdvice = (studentId: string, advice: string, adviceStatus: TestResult['adviceStatus']) => {
+    setTestResult(prev => (prev && prev.studentId === studentId ? { ...prev, advice, adviceStatus } : prev));
+  };
+  // Nghe kênh riêng của học sinh này: chữ AI đang viết (progress), xoá khi đổi model (reset), bản cuối (student:advice)
+  const updatePending = (sid: string, advice: string) =>
+    setTestResult(prev =>
+      prev && prev.studentId === sid && prev.adviceStatus === 'pending' ? { ...prev, advice } : prev
+    );
+  useRealtime(
+    {
+      'advice:progress': ({ id: sid, html }) => updatePending(sid, html),
+      'advice:reset': ({ id: sid }) => updatePending(sid, ''),
+      'student:advice': ({ id: sid, advice, adviceStatus }) => applyAdvice(sid, advice, adviceStatus),
+    },
+    advicePending,
+    advicePending ? `student:${testResult!.studentId}` : undefined
+  );
+  useEffect(() => {
+    if (!advicePending) return;
+    const sid = testResult!.studentId!;
+    let tries = 0;
+    const timer = setInterval(async () => {
+      tries++;
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/students/${sid}`);
+        const s = (await res.json())?.data;
+        if (s && s.adviceStatus && s.adviceStatus !== 'pending') {
+          applyAdvice(sid, s.advice, s.adviceStatus);
+          return;
+        }
+      } catch {
+        /* thử lại lần sau */
+      }
+      if (tries >= 30) {
+        clearInterval(timer);
+        setTestResult(prev => (prev && prev.studentId === sid ? { ...prev, adviceStatus: 'timeout' } : prev));
+      }
+    }, 6000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advicePending, testResult?.studentId]);
+
+  // Danh mục trường / ngành do admin quản lý (lỗi mạng → giữ danh sách trường mặc định)
+  useEffect(() => {
+    optionsApi
+      .getPublic()
+      .then(({ universities, majors }) => {
+        if (universities.length) setUniversityOptions(universities);
+        setMajorOptions(majors);
+      })
+      .catch(err => console.error('Không tải được danh mục trường/ngành:', err))
+      .finally(() => setOptionsLoading(false));
+  }, []);
+
   useEffect(() => {
     // nếu không có id => về bước 1
     if (!id) {
@@ -130,7 +183,7 @@ const HollandTest = () => {
 
       try {
         let res = await apiService.getStudentById(id);
-        const student = res.data.student; // BE trả về { success, student }
+        const student = res.data?.student ?? res.data; // BE trả về { success, data: student }
 
         // ---- Áp dụng rule BE để tính topGroups ----
         const topGroups: TopGroup[] = processTopGroups(student.hollandScores || {});
@@ -143,7 +196,9 @@ const HollandTest = () => {
           scores: student.scores || [],
           apiResponse: student,
           recommendationText: student.recommendationText || '',
-          advice: student.advice
+          advice: student.advice,
+          adviceStatus: student.adviceStatus,
+          studentId: student._id
         };
 
         setPersonalInfo({
@@ -151,7 +206,9 @@ const HollandTest = () => {
           class: student.class,
           number: student.number,
           university: student.university || '',
-          major: student.major || ''
+          major: student.major || '',
+          universityOther: !!student.universityOther,
+          majorOther: !!student.majorOther
         });
         setTestResult(result);
         setStep(5);
@@ -190,49 +247,33 @@ const HollandTest = () => {
       return;
     }
 
-    // 🔎 kiểm tra rỗng trước
-    if (
-      !personalInfo.name.trim() ||
-      !personalInfo.class.trim() ||
-      !personalInfo.number ||
-      personalInfo.number <= 0 ||
-      personalInfo.number > 100 ||
-      !personalInfo.university.trim() ||
-      !personalInfo.major.trim()
-    ) {
-      toast({
-        title: "Thông tin chưa đầy đủ",
-        description: "Vui lòng điền đầy đủ thông tin cá nhân trước khi tiếp tục.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // 🔎 kiểm tra từng trường, báo đúng lỗi của trường đó
+    const name = personalInfo.name.trim();
+    const cls = personalInfo.class.trim();
+    const num = Number(personalInfo.number);
+    const university = personalInfo.university.trim();
+    const major = personalInfo.major.trim();
 
-    // 🔎 kiểm tra độ dài
-    if (personalInfo.name.length > 50) {
-      toast({
-        title: "Tên quá dài",
-        description: "Tên không được vượt quá 50 ký tự.",
-        variant: "destructive",
-      });
-      return;
-    }
+    const problem: [string, string] | null =
+      !name ? ["Thiếu họ và tên", "Vui lòng nhập họ và tên."]
+      : name.length > 50 ? ["Tên quá dài", "Tên không được vượt quá 50 ký tự."]
+      : !cls ? ["Thiếu lớp", "Vui lòng nhập lớp (VD: 12A1)."]
+      : cls.length > 10 ? ["Lớp không hợp lệ", "Tên lớp không được vượt quá 10 ký tự."]
+      : !num ? ["Thiếu danh số", "Vui lòng nhập danh số của bạn."]
+      : !Number.isInteger(num) || num < 1 || num > 100
+        ? ["Danh số không hợp lệ", "Danh số phải là số từ 1 đến 100."]
+      : !university
+        ? personalInfo.universityOther
+          ? ["Thiếu tên trường", "Bạn đã chọn \"Trường khác\" - vui lòng nhập tên trường."]
+          : ["Thiếu trường đại học", "Vui lòng chọn trường đại học mong muốn."]
+      : !major
+        ? personalInfo.majorOther
+          ? ["Thiếu tên ngành", "Bạn đã chọn \"Ngành khác\" - vui lòng nhập tên ngành."]
+          : ["Thiếu ngành học", "Vui lòng chọn ngành học mong muốn."]
+      : null;
 
-    if (personalInfo.class.length > 10) {
-      toast({
-        title: "Lớp không hợp lệ",
-        description: "Tên lớp không được vượt quá 10 ký tự.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (personalInfo.number > 999) {
-      toast({
-        title: "Danh số không hợp lệ",
-        description: "Danh số chỉ được tối đa 3 chữ số.",
-        variant: "destructive",
-      });
+    if (problem) {
+      toast({ title: problem[0], description: problem[1], variant: "destructive" });
       return;
     }
 
@@ -284,11 +325,10 @@ const HollandTest = () => {
       }
     });
 
-    const initialScores = Array.from(allSubjects).map(subject => ({
-      subject,
-      currentScore: 0,
-      targetScore: 0
-    }));
+    // Giữ điểm đã nhập của các môn vẫn còn trong khối đã chọn (khi quay lại đổi khối)
+    const initialScores = Array.from(allSubjects).map(subject =>
+      scores.find(s => s.subject === subject) ?? { subject, currentScore: 0, targetScore: 0 }
+    );
 
     setScores(initialScores);
     setStep(4);
@@ -346,7 +386,9 @@ const HollandTest = () => {
         apiResponse,
         recommendationText: apiResponse.recommendationText,
         message: apiResponse.message,
-        advice: apiResponse.advice
+        advice: apiResponse.advice,
+        adviceStatus: apiResponse.adviceStatus || (apiResponse.advice ? 'done' : undefined),
+        studentId: apiResponse.studentId || apiResponse.student?._id
       };
       console.log(result)
       setTestResult(result);
@@ -380,10 +422,11 @@ const HollandTest = () => {
   const resetTest = () => {
     setStep(1);
     setCurrentGroupIndex(0);
-    setPersonalInfo({ name: '', class: '', number: '', university: '', major: '' });
+    setPersonalInfo({ name: '', class: '', number: '', university: '', major: '', universityOther: false, majorOther: false });
     setTestAnswers({});
     setSelectedBlocks([]);
     setScores([]);
+    setScoreDrafts({});
     setTestResult(null);
     setApiError('');
     // Reload questions for new test
@@ -519,7 +562,9 @@ const HollandTest = () => {
     return groups;
   }, {} as Record<string, QuestionResponse[]>);
 
-  const groupTypes = Object.keys(groupedQuestions);
+  // Thứ tự nhóm cố định R-I-A-S-E-C (không phụ thuộc id câu hỏi khi admin thêm/chuyển nhóm)
+  const HOLLAND_ORDER = ['R', 'I', 'A', 'S', 'E', 'C'];
+  const groupTypes = Object.keys(groupedQuestions).sort((a, b) => HOLLAND_ORDER.indexOf(a) - HOLLAND_ORDER.indexOf(b));
   const currentGroup = groupTypes[currentGroupIndex];
   const currentQuestions = groupedQuestions[currentGroup] || [];
   const containerMaxWidth = step <= 2 ? 'max-w-2xl' : step <= 4 ? 'max-w-4xl' : 'max-w-6xl';
@@ -544,7 +589,11 @@ const HollandTest = () => {
       // ✅ Kiểm tra: phải có ít nhất 3 nhóm có điểm > 0
       const groupsWithScore = Object.values(hollandScores).filter(v => v > 0).length;
       if (groupsWithScore < 3) {
-        alert("Bạn cần trả lời đủ để có ít nhất 3 nhóm Holland có điểm trước khi nộp bài.");
+        toast({
+          title: "Chưa đủ câu trả lời",
+          description: "Bạn cần chọn hoạt động ở ít nhất 3 nhóm để có kết quả chính xác. Hãy quay lại các nhóm trước để chọn thêm.",
+          variant: "destructive",
+        });
         return; // dừng lại, không gửi API
       }
       setStep(3);
@@ -576,16 +625,16 @@ const HollandTest = () => {
 
   const renderPersonalInfoStep = () => (
     <Card className="w-full max-w-2xl mx-auto shadow-medium">
-      <CardHeader className="text-center bg-gradient-primary text-primary-foreground rounded-t-lg">
-        <div className="flex items-center justify-center gap-3 mb-4">
-          <GraduationCap className="w-8 h-8" />
-          <CardTitle className="text-3xl font-bold">Test Holland - Định hướng nghề nghiệp</CardTitle>
+      <CardHeader className="text-center bg-gradient-primary text-primary-foreground rounded-t-lg px-5 py-6 sm:p-6">
+        <div className="flex items-center justify-center gap-2 sm:gap-3 mb-2 sm:mb-4">
+          <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" />
+          <CardTitle className="text-xl sm:text-3xl font-bold leading-tight">Test Holland - Định hướng nghề nghiệp</CardTitle>
         </div>
-        <p className="text-primary-foreground/90 text-lg">
+        <p className="text-primary-foreground/90 text-sm sm:text-lg">
           Khám phá khả năng và sở thích của bạn để tìm ra ngành học phù hợp
         </p>
       </CardHeader>
-      <CardContent className="p-8 space-y-6">
+      <CardContent className="p-5 sm:p-8 space-y-6">
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-base font-medium">Họ và tên</Label>
@@ -634,6 +683,8 @@ const HollandTest = () => {
             <Label htmlFor="number" className="text-base font-medium">Danh số</Label>
             <Input
               id="number"
+              inputMode="numeric"
+              pattern="[0-9]*"
               // 🔑 chỉ nguyên
               value={personalInfo.number ?? ''}     // vẫn hiển thị rỗng nếu undefined
               onChange={e => {
@@ -651,65 +702,75 @@ const HollandTest = () => {
             />
           </div>
 
-          <div className="space-y-4">
-            {/* --- Chọn trường đại học --- */}
-            <div className="space-y-2">
-              <Label className="text-base font-medium">Trường Đại học</Label>
-              <Popover open={open} onOpenChange={setOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    className="w-full justify-between h-12 text-base"
-                    onClick={() => setOpen(!open)}
-                  >
-                    {personalInfo.university || "Chọn trường"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
-                  <Command>
-                    <CommandInput placeholder="Tìm kiếm trường..." />
-                    <CommandList>
-                      <CommandEmpty>Không tìm thấy</CommandEmpty>
-                      <CommandGroup>
-                        {universityNames.map((uni) => (
-                          <CommandItem
-                            key={uni}
-                            value={uni}
-                            onSelect={() => {
-                              setPersonalInfo((prev) => ({ ...prev, university: uni }));
-                              setOpen(false); // 🔑 Đóng popover khi chọn
-                            }}
-                          >
-                            {uni}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-
-            </div>
-
-            {/* --- Nhập ngành học --- */}
-            <div className="space-y-2">
-              <Label htmlFor="major" className="text-base font-medium">Ngành học mong muốn</Label>
+          {/* --- Chọn trường đại học --- */}
+          <div className="space-y-2">
+            <Label htmlFor="university" className="text-base font-medium">Trường Đại học mong muốn</Label>
+            <SearchableSelect
+              id="university"
+              title="Chọn trường đại học"
+              options={universityOptions}
+              value={personalInfo.university}
+              isOther={personalInfo.universityOther}
+              onSelect={(val, other) =>
+                setPersonalInfo(prev => ({ ...prev, university: val, universityOther: other }))
+              }
+              placeholder="Chọn trường"
+              searchPlaceholder="Tìm trường (gõ không dấu cũng được)..."
+              allowOther
+              otherLabel="Trường khác (tự nhập)"
+              loading={optionsLoading && universityOptions.length === 0}
+            />
+            {personalInfo.universityOther && (
               <Input
-                id="major"
-                value={personalInfo.major}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  // Giới hạn tối đa 50 ký tự
-                  const limited = raw.slice(0, 80);
-                  setPersonalInfo(prev => ({ ...prev, major: limited }));
-                }
-                }
-                placeholder="Nhập ngành học (VD: Công nghệ thông tin)"
+                value={personalInfo.university}
+                onChange={e => {
+                  const value = e.target.value.slice(0, 120);
+                  setPersonalInfo(prev => ({ ...prev, university: value }));
+                }}
+                placeholder="Nhập tên trường bạn mong muốn"
                 className="h-12 text-base"
+                maxLength={120}
+                autoFocus
               />
-            </div>
+            )}
+          </div>
+
+          {/* --- Chọn ngành học --- */}
+          <div className="space-y-2">
+            <Label htmlFor="major" className="text-base font-medium">Ngành học mong muốn</Label>
+            <SearchableSelect
+              id="major"
+              title="Chọn ngành học"
+              options={majorOptions}
+              value={personalInfo.major}
+              isOther={personalInfo.majorOther}
+              onSelect={(val, other) =>
+                setPersonalInfo(prev => ({ ...prev, major: val, majorOther: other }))
+              }
+              placeholder="Chọn ngành học"
+              searchPlaceholder="Tìm ngành (VD: cong nghe thong tin)..."
+              allowOther
+              otherLabel="Ngành khác (tự nhập)"
+              loading={optionsLoading && majorOptions.length === 0}
+            />
+            {personalInfo.majorOther && (
+              <Input
+                value={personalInfo.major}
+                onChange={e => {
+                  const value = e.target.value.slice(0, 80);
+                  setPersonalInfo(prev => ({ ...prev, major: value }));
+                }}
+                placeholder="Nhập ngành học bạn mong muốn"
+                className="h-12 text-base"
+                maxLength={80}
+                autoFocus
+              />
+            )}
+            {!personalInfo.majorOther && (
+              <p className="text-sm text-muted-foreground">
+                Không thấy ngành của bạn? Chọn <span className="font-medium">"Ngành khác"</span> ở cuối danh sách để tự nhập.
+              </p>
+            )}
           </div>
         </div>
 
@@ -748,145 +809,109 @@ const HollandTest = () => {
     </Card>
   );
 
+  const scrollToTop = () => {
+    setTimeout(() => {
+      scrollDivRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
+  };
+
+  const goToStep = (next: number) => {
+    setStep(next);
+    scrollToTop();
+  };
+
   const renderTestStep = () => {
     const groupInfo = hollandTypeDescriptions[currentGroup as keyof HollandScores];
+    const selectedInGroup = currentQuestions.filter(q => testAnswers[q.id]).length;
 
     return (
-      <Card className="w-full max-w-2xl mx-auto shadow-medium">
-        <CardHeader className="bg-gradient-warm text-white rounded-t-lg relative">
-          <div className="absolute top-4 right-6 text-white/80 font-medium">
-            {currentGroupIndex + 1} / {groupTypes.length}
+      <Card className="w-full max-w-2xl mx-auto shadow-medium overflow-hidden">
+        <CardHeader className="bg-gradient-warm text-white px-4 py-4 sm:px-6 sm:py-5">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-lg sm:text-2xl font-bold leading-tight">
+              Nếu có điều kiện, tôi sẽ...
+            </CardTitle>
+            <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-xs sm:text-sm font-semibold tabular-nums">
+              {currentGroupIndex + 1}/{groupTypes.length}
+            </span>
           </div>
-          <CardTitle className="text-2xl font-bold text-center pt-2">
-            Nếu có điều kiện, tôi sẽ...
-          </CardTitle>
-          <p className="text-white/90 text-sm text-center mt-2">
-            Đánh dấu vào các hoạt động bạn cảm thấy phù hợp
+          <p className="text-white/90 text-xs sm:text-sm mt-1">
+            Chạm vào những hoạt động bạn thấy phù hợp{groupInfo?.name ? ` · ${groupInfo.name}` : ''}
           </p>
-          <p className="text-white/80 text-xs text-center mt-2">
-            ({groupInfo?.name})
-          </p>
-        </CardHeader>
-        <CardContent className="p-8">
-          <div className="space-y-4">
-            {currentQuestions.map((question) => (
-              <div
-                key={question.id}
-                className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 ${testAnswers[question.id]
-                  ? 'bg-education-green text-white border-education-green'
-                  : 'border-muted bg-background hover:bg-muted/50'
-                  }`}
-                onClick={() => handleAnswerChange(question.id, !testAnswers[question.id])}
-              >
-                <div className="flex items-center space-x-4" >
-                  <Checkbox
-                    id={`question-${question.id}`}
-                    checked={testAnswers[question.id] || false}
-                    onCheckedChange={(checked) =>
-                      handleAnswerChange(question.id, checked as boolean)
-                    }
-                  // className="pointer-events-none"
-                  />
-                  <Label
-                    // htmlFor={`question-${question.id}`}
-                    className="text-base leading-relaxed cursor-pointer flex-1"
-                  >
-                    {question.text}
-                  </Label>
-                </div>
-              </div>
+          {/* chấm tiến độ từng nhóm */}
+          <div className="mt-3 flex gap-1.5" aria-hidden>
+            {groupTypes.map((g, i) => (
+              <span
+                key={g}
+                className={`h-1.5 flex-1 rounded-full transition-colors ${i <= currentGroupIndex ? 'bg-white' : 'bg-white/30'}`}
+              />
             ))}
           </div>
-
-          <div className="flex justify-between items-center pt-8">
-            <Button
-              variant="outline"
-              onClick={handlePrevGroup}
-              disabled={currentGroupIndex === 0}
-              className="px-6"
-            >
-              Quay lại
-            </Button>
-
-            <Button
-              onClick={handleNextGroup}
-              className="px-8 py-3 bg-education-green hover:bg-education-green/90 text-white"
-            >
-              {currentGroupIndex === groupTypes.length - 1 ? 'Tiếp theo' : 'Tiếp theo'}
-            </Button>
+        </CardHeader>
+        <CardContent className="p-3 sm:p-6">
+          <div className="space-y-2 sm:space-y-3">
+            {currentQuestions.map((question) => {
+              const checked = !!testAnswers[question.id];
+              return (
+                <button
+                  type="button"
+                  key={question.id}
+                  aria-pressed={checked}
+                  onClick={() => handleAnswerChange(question.id, !checked)}
+                  className={`flex w-full items-center gap-3 rounded-lg border-2 px-3 py-3 sm:px-4 text-left transition-colors duration-150 active:scale-[0.99] ${checked
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-950 font-medium'
+                    : 'border-transparent bg-muted/60 text-foreground hover:bg-muted'
+                    }`}
+                >
+                  <span
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 ${checked ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-muted-foreground/40 bg-background'}`}
+                  >
+                    {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                  </span>
+                  <span className="flex-1 text-[15px] sm:text-base leading-snug">{question.text}</span>
+                </button>
+              );
+            })}
           </div>
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            Đã chọn {selectedInGroup}/{currentQuestions.length} hoạt động trong nhóm này
+          </p>
         </CardContent>
       </Card>
     );
   };
 
   const renderBlockSelectionStep = () => (
-    <Card className="w-full max-w-4xl mx-auto shadow-medium">
-      <CardHeader className="text-center bg-gradient-secondary text-white rounded-t-lg">
-        <CardTitle className="text-2xl font-bold flex items-center justify-center gap-3">
-          <BookOpen className="w-6 h-6" />
-          Chọn các khối thi đại học
+    <Card className="w-full max-w-4xl mx-auto shadow-medium overflow-hidden">
+      <CardHeader className="bg-gradient-secondary text-white px-4 py-4 sm:px-6 sm:py-5">
+        <CardTitle className="text-lg sm:text-2xl font-bold flex items-center gap-2">
+          <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
+          Chọn khối thi đại học
         </CardTitle>
-        <p className="text-white/90">Chọn các khối thi mà bạn dự định tham gia (có thể chọn nhiều)</p>
+        <p className="text-white/90 text-xs sm:text-sm">Chọn các khối bạn dự định xét tuyển (có thể chọn nhiều)</p>
       </CardHeader>
-      <CardContent className="p-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {testBlocks.map(block => (
-            <Card
-              key={block.id}
-              className={`cursor-pointer transition-all duration-300 hover:scale-105 border-2 ${selectedBlocks.includes(block.id)
-                ? 'border-primary bg-primary/10'
-                : 'border-muted hover:border-primary'
-                }`}
-              onClick={() => handleBlockToggle(block.id)}
-            >
-              <CardContent className="p-6 text-center">
-                <div className="flex items-center justify-center mb-2">
-                  <Checkbox
-                    checked={selectedBlocks.includes(block.id)}
-                    className="mr-3"
-                  />
-                  <div className="text-2xl font-bold text-primary">{block.id}</div>
-                </div>
-                <div className="text-sm text-muted-foreground">{block.name}</div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <div className="mt-8 flex justify-between items-center">
-          <Button
-            variant="outline"
-            onClick={() => {
-              setStep(2)
-              setTimeout(() => {
-                if (scrollDivRef.current) {
-                  scrollDivRef.current.scrollTo({
-                    top: 0,
-                    behavior: 'smooth', // Cuộn mượt mà
-                  });
-                }
-              }, 100);
-            }}
-            className="hover:bg-muted"
-          >
-            Quay lại làm test
-          </Button>
-
-          <div className="text-center">
-            {selectedBlocks.length > 0 && (
-              <p className="text-sm text-muted-foreground mb-2">
-                Đã chọn {selectedBlocks.length} khối thi
-              </p>
-            )}
-            <Button
-              onClick={handleBlockSelectionNext}
-              disabled={selectedBlocks.length === 0}
-              className="bg-gradient-primary hover:shadow-glow px-8 py-3"
-            >
-              Tiếp tục <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
-          </div>
+      <CardContent className="p-3 sm:p-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+          {testBlocks.map(block => {
+            const selected = selectedBlocks.includes(block.id);
+            const subjects = block.name.match(/\(([^)]+)\)/)?.[1] || block.name;
+            return (
+              <button
+                type="button"
+                key={block.id}
+                aria-pressed={selected}
+                onClick={() => handleBlockToggle(block.id)}
+                className={`relative rounded-lg border-2 p-3 text-left transition-colors active:scale-[0.98] ${selected
+                  ? 'border-primary bg-primary/10'
+                  : 'border-muted bg-background hover:border-primary/60'
+                  }`}
+              >
+                {selected && <CheckCircle className="absolute right-2 top-2 h-4 w-4 text-primary" />}
+                <div className="text-lg font-bold text-primary leading-none">{block.id}</div>
+                <div className="mt-1 text-xs sm:text-sm text-muted-foreground leading-snug">{subjects}</div>
+              </button>
+            );
+          })}
         </div>
       </CardContent>
     </Card>
@@ -896,103 +921,141 @@ const HollandTest = () => {
 
   ];
 
+  /** Cho phép gõ "7.", "7,5" khi nhập điểm (lưu chuỗi tạm, số thật được cập nhật song song). */
+  const [scoreDrafts, setScoreDrafts] = useState<Record<string, string>>({});
+
+  const handleScoreInput = (index: number, subject: string, field: 'currentScore' | 'targetScore', raw: string) => {
+    let text = raw.replace(',', '.').replace(/[^\d.]/g, '');
+    const firstDot = text.indexOf('.');
+    if (firstDot >= 0) text = text.slice(0, firstDot + 1) + text.slice(firstDot + 1).replace(/\./g, '').slice(0, 2);
+    let value = parseFloat(text);
+    if (value > 10) {
+      value = 10;
+      text = '10';
+    }
+    setScoreDrafts(prev => ({ ...prev, [`${subject}|${field}`]: text }));
+    handleScoreChange(index, field, Number.isFinite(value) ? value : 0);
+  };
+
+  const scoreDisplay = (subject: string, field: 'currentScore' | 'targetScore', value: number) => {
+    const draft = scoreDrafts[`${subject}|${field}`];
+    if (draft !== undefined) return draft;
+    return value ? String(value) : '';
+  };
+
   const renderScoreInputStep = () => (
-    <Card className="w-full max-w-4xl mx-auto shadow-medium">
-      <CardHeader className="text-center bg-gradient-success text-white rounded-t-lg">
-        <CardTitle className="text-2xl font-bold flex items-center justify-center gap-3">
-          <Target className="w-6 h-6" />
+    <Card className="w-full max-w-4xl mx-auto shadow-medium overflow-hidden">
+      <CardHeader className="bg-gradient-success text-white px-4 py-4 sm:px-6 sm:py-5">
+        <CardTitle className="text-lg sm:text-2xl font-bold flex items-center gap-2">
+          <Target className="w-5 h-5 sm:w-6 sm:h-6" />
           Điền điểm số của bạn
         </CardTitle>
-        <p className="text-white/90">
-          Điền điểm hiện tại và điểm mong muốn cho các môn trong khối thi đã chọn
+        <p className="text-white/90 text-xs sm:text-sm">
+          Điểm hiện tại và điểm mong muốn (thang 10). Có thể bỏ trống nếu chưa có điểm.
         </p>
       </CardHeader>
-      <CardContent className="p-8">
-        <div className="space-y-6">
+      <CardContent className="p-3 sm:p-6">
+        <div className="hidden sm:grid grid-cols-[1fr_140px_140px] gap-3 px-4 pb-2 text-sm font-medium text-muted-foreground">
+          <span>Môn học</span>
+          <span className="text-center">Hiện tại</span>
+          <span className="text-center">Mong muốn</span>
+        </div>
+        <div className="space-y-2">
           {scores
             .filter(score => !excludedSubjects.includes(score.subject))
             .map((score, index) => (
-              <div key={score.subject} className="bg-muted rounded-lg p-6">
-                <h3 className="font-bold text-lg mb-4 text-center">{score.subject}</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-base font-medium">Điểm hiện tại</Label>
+              <div
+                key={score.subject}
+                className="grid grid-cols-2 sm:grid-cols-[1fr_140px_140px] items-center gap-2 sm:gap-3 rounded-lg bg-muted px-3 py-3 sm:px-4"
+              >
+                <h3 className="col-span-2 sm:col-span-1 font-semibold text-base">{score.subject}</h3>
+                {(['currentScore', 'targetScore'] as const).map(field => (
+                  <label key={field} className="block">
+                    <span className="mb-1 block text-xs text-muted-foreground sm:hidden">
+                      {field === 'currentScore' ? 'Hiện tại' : 'Mong muốn'}
+                    </span>
                     <Input
-                      min="0"
-                      max="10"
-                      step="0.1"
-                      value={score.currentScore ?? ''}
-                      onChange={e => {
-                        let value = parseFloat(e.target.value);
-                        if (value > 10) value = 10;        // chặn >10
-                        if (value < 0) value = 0;          // chặn <0
-                        handleScoreChange(index, 'currentScore', value || 0);
-                      }}
-                      placeholder="0.0"
-                      className="h-12 text-base text-center"
+                      inputMode="decimal"
+                      enterKeyHint="next"
+                      value={scoreDisplay(score.subject, field, score[field])}
+                      onChange={e => handleScoreInput(index, score.subject, field, e.target.value)}
+                      placeholder="VD: 7,5"
+                      className="h-11 text-base text-center bg-background"
+                      aria-label={`${score.subject} - ${field === 'currentScore' ? 'điểm hiện tại' : 'điểm mong muốn'}`}
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-base font-medium">Điểm mong muốn</Label>
-                    <Input
-                      min="0"
-                      max="10"
-                      step="0.1"
-                      value={score.targetScore ?? ''}
-                      onChange={e => {
-                        let value = parseFloat(e.target.value);
-                        if (value > 10) value = 10;
-                        if (value < 0) value = 0;
-                        handleScoreChange(index, 'targetScore', value || 0);
-                      }}
-                      placeholder="0.0"
-                      className="h-12 text-base text-center"
-                    />
-                  </div>
-                </div>
+                  </label>
+                ))}
               </div>
             ))}
-        </div>
-
-        <div className="mt-8 flex justify-between items-center">
-          <Button
-            variant="outline"
-            onClick={() => {
-              setStep(3)
-              setTimeout(() => {
-                if (scrollDivRef.current) {
-                  scrollDivRef.current.scrollTo({
-                    top: 0,
-                    behavior: 'smooth', // Cuộn mượt mà
-                  });
-                }
-              }, 100);
-            }}
-            className="hover:bg-muted"
-          >
-            Quay lại chọn khối
-          </Button>
-
-          <Button
-            onClick={calculateResults}
-            disabled={isSubmittingResults}
-            className="bg-gradient-primary hover:shadow-glow px-8 py-3"
-          >
-            {isSubmittingResults ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Đang xử lý...
-              </>
-            ) : (
-              <>
-                Hoàn thành <CheckCircle className="w-5 h-5 ml-2" />
-              </>
-            )}
-          </Button>
         </div>
       </CardContent>
     </Card>
   );
+
+  /** Thanh hành động cố định dưới màn hình cho bước 2–4 */
+  const renderBottomBar = () => {
+    let back: { label: string; onClick: () => void } | null = null;
+    let info = '';
+    let next: { label: React.ReactNode; onClick: () => void; disabled?: boolean } | null = null;
+
+    if (step === 2) {
+      const selected = currentQuestions.filter(q => testAnswers[q.id]).length;
+      const isLast = currentGroupIndex === groupTypes.length - 1;
+      back = currentGroupIndex > 0
+        ? { label: 'Quay lại', onClick: handlePrevGroup }
+        : { label: 'Thông tin', onClick: () => goToStep(1) };
+      info = `Đã chọn ${selected}/${currentQuestions.length}`;
+      next = {
+        label: <>{isLast ? 'Chọn khối thi' : 'Nhóm tiếp'} <ArrowRight className="w-4 h-4 ml-1" /></>,
+        onClick: handleNextGroup,
+      };
+    } else if (step === 3) {
+      back = { label: 'Quay lại', onClick: () => goToStep(2) };
+      info = selectedBlocks.length ? `Đã chọn ${selectedBlocks.length} khối` : 'Chưa chọn khối';
+      next = {
+        label: <>Nhập điểm <ArrowRight className="w-4 h-4 ml-1" /></>,
+        onClick: handleBlockSelectionNext,
+        disabled: selectedBlocks.length === 0,
+      };
+    } else if (step === 4) {
+      back = { label: 'Quay lại', onClick: () => goToStep(3) };
+      const filled = scores.filter(s => s.currentScore > 0).length;
+      info = isSubmittingResults ? 'Đang tính kết quả…' : `Đã nhập ${filled}/${scores.length} môn`;
+      next = {
+        label: isSubmittingResults
+          ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Đang xử lý</>
+          : <>Hoàn thành <CheckCircle className="w-4 h-4 ml-1" /></>,
+        onClick: calculateResults,
+        disabled: isSubmittingResults,
+      };
+    } else {
+      return null;
+    }
+
+    return (
+      <div className="flex-shrink-0 border-t bg-white/95 backdrop-blur-sm shadow-[0_-4px_16px_rgba(0,0,0,0.08)] pb-[env(safe-area-inset-bottom)]">
+        <div className={`w-full ${containerMaxWidth} mx-auto flex items-center gap-2 px-3 py-2.5 sm:px-4`}>
+          <Button
+            variant="outline"
+            onClick={back.onClick}
+            disabled={isSubmittingResults}
+            className="h-11 shrink-0 px-3 sm:px-5"
+          >
+            <ArrowRight className="w-4 h-4 mr-1 rotate-180" />
+            {back.label}
+          </Button>
+          <p className="min-w-0 flex-1 truncate text-center text-xs sm:text-sm text-muted-foreground">{info}</p>
+          <Button
+            onClick={next.onClick}
+            disabled={next.disabled}
+            className="h-11 shrink-0 px-4 sm:px-6 bg-gradient-primary hover:shadow-glow"
+          >
+            {next.label}
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   const exportPDF = () => {
     console.log("Generating PDF...");
@@ -1091,19 +1154,45 @@ const HollandTest = () => {
               </div>
             )}
 
-            {testResult?.advice && (
+            {(testResult?.advice || testResult?.adviceStatus === 'pending' || testResult?.adviceStatus === 'timeout') && (
               <div className="card page-break mb-8">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <Sparkles className="w-5 h-5" />
                   Lời khuyên dành cho bạn
                 </h3>
-                <div className="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-all duration-300">
-                  <div className="prose prose-sm max-w-none">
-                    <div
-                      className="text-muted-foreground leading-relaxed whitespace-pre-line card"
-                      dangerouslySetInnerHTML={{ __html: testResult.advice }}
-                    />
-                  </div>
+                <div className="bg-card border border-border rounded-lg p-4 sm:p-6">
+                  {testResult.adviceStatus === 'pending' && !testResult.advice ? (
+                    <div className="no-print" aria-live="polite">
+                      <div className="flex items-center gap-3 rounded-lg bg-primary/10 px-4 py-3 text-sm font-medium text-primary">
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                        AI đang viết lời khuyên riêng cho bạn… thường mất 30–60 giây, bạn cứ xem kết quả bên trên nhé.
+                      </div>
+                      <div className="mt-5 space-y-3 animate-pulse">
+                        <div className="h-4 w-1/3 rounded bg-muted" />
+                        <div className="h-3 w-full rounded bg-muted" />
+                        <div className="h-3 w-11/12 rounded bg-muted" />
+                        <div className="h-3 w-4/5 rounded bg-muted" />
+                        <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
+                          <div className="h-24 rounded-lg bg-muted" />
+                          <div className="h-24 rounded-lg bg-muted" />
+                        </div>
+                      </div>
+                    </div>
+                  ) : testResult.adviceStatus === 'timeout' && !testResult.advice ? (
+                    <p className="text-sm text-muted-foreground">
+                      Lời khuyên đang được tạo lâu hơn bình thường. Kết quả của bạn đã được lưu – thầy cô có thể xem lời khuyên trong trang quản lý, hoặc bạn tải lại trang sau ít phút.
+                    </p>
+                  ) : (
+                    <>
+                      <AdviceView html={testResult.advice || ''} streaming={testResult.adviceStatus === 'pending'} />
+                      {testResult.adviceStatus === 'pending' && (
+                        <div className="adv-writing no-print" role="status">
+                          <span className="adv-writing-dots"><span /><span /><span /></span>
+                          AI đang viết tiếp…
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -1174,10 +1263,13 @@ const HollandTest = () => {
         <Button
           onClick={exportPDF}
           variant="outline"
+          disabled={testResult?.adviceStatus === 'pending'}
+          title={testResult?.adviceStatus === 'pending' ? 'Đợi AI viết xong lời khuyên để PDF có đủ nội dung' : undefined}
           className="no-print px-8 py-3 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
         >
-          <Download className="w-5 h-5 mr-2" />
-          Xuất PDF
+          {testResult?.adviceStatus === 'pending'
+            ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Đang chờ lời khuyên…</>
+            : <><Download className="w-5 h-5 mr-2" />Xuất PDF</>}
         </Button>
         <Button
           onClick={resetTest}
@@ -1191,26 +1283,53 @@ const HollandTest = () => {
 
   return (
     <div
-      className="h-screen flex flex-col relative"
+      className="h-[100dvh] flex flex-col relative"
       style={{
         backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url(${schoolBackground})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
+        backgroundAttachment: 'scroll'
       }}
     >
-      {/* School Header - Fixed */}
+      {/* School Header - Fixed (gọn lại khi đang làm bài) */}
+      {step >= 2 && step <= 4 ? (
+        <div className="flex-shrink-0 px-3 pt-3 pb-2 sm:px-4">
+          <div className={`w-full ${containerMaxWidth} mx-auto`}>
+            <div className="flex items-center gap-3 rounded-lg bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm">
+              <img src={schoolLogo} alt="Logo trường THPT Nguyễn Hiền" className="h-8 w-8 shrink-0 object-contain" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="truncate text-sm font-semibold text-primary">
+                    {step === 2 ? 'Trắc nghiệm Holland' : step === 3 ? 'Chọn khối thi' : 'Điểm số'}
+                  </p>
+                  <span className="shrink-0 text-xs text-muted-foreground">Bước {step - 1}/3</span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-300"
+                    style={{
+                      width: `${step === 2
+                        ? ((currentGroupIndex + 1) / Math.max(groupTypes.length, 1)) * 60
+                        : step === 3 ? 75 : 95}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="flex-shrink-0 px-4 pt-4 pb-2">
         <div className={`w-full ${containerMaxWidth} mx-auto`}>
-          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-4">
-            <div className="flex flex-col md:flex-row items-center justify-center gap-3">
+          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg px-3 py-2 sm:p-4">
+            <div className="flex flex-row items-center justify-center gap-3">
               <img
                 src={schoolLogo}
                 alt="Logo trường THPT Nguyễn Hiền"
-                className="w-12 h-12 md:w-16 md:h-16 object-contain"
+                className="w-10 h-10 md:w-16 md:h-16 object-contain"
               />
               <div className="text-center md:text-left">
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   Sở Giáo dục và Đào tạo TP. Hồ Chí Minh
                 </p>
                 <h1 className="text-lg md:text-xl font-bold text-primary mb-1">
@@ -1222,6 +1341,7 @@ const HollandTest = () => {
         </div>
       </div>
 
+      )}
       {/* Main Content - Scrollable */}
       <div ref={scrollDivRef} className="flex-1 overflow-y-auto px-4 pb-4 custom-scroll">
         <div className={`w-full ${containerMaxWidth} mx-auto`}>
@@ -1232,6 +1352,8 @@ const HollandTest = () => {
           {step === 5 && renderResultStep()}
         </div>
       </div>
+
+      {renderBottomBar()}
     </div>
   );
 };

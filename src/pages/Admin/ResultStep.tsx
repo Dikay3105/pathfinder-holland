@@ -198,13 +198,10 @@ const ResultPDF = forwardRef<HTMLDivElement, ResultPDFProps>(({ studentId }, ref
                 Lời khuyên dành cho bạn
               </h3>
               <div className="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-all duration-300">
-                <div className="prose prose-sm max-w-none">
-                  <div
-                    style={{ pageBreakInside: 'avoid' }}
-                    className="text-muted-foreground leading-relaxed whitespace-pre-line card"
-                    dangerouslySetInnerHTML={{ __html: testResult.advice }}
-                  />
-                </div>
+                <div
+                  className="advice-content"
+                  dangerouslySetInnerHTML={{ __html: testResult.advice }}
+                />
               </div>
             </div>
           )}

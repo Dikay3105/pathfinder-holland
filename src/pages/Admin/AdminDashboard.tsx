@@ -4,7 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   Users,
-  BarChart3
+  BarChart3,
+  PieChart,
+  School,
+  ListChecks
 } from 'lucide-react';
 
 interface Stats {
@@ -25,6 +28,27 @@ const AdminDashboard = () => {
       icon: BarChart3,
       link: '/admin/student-results',
       color: 'bg-orange-500'
+    },
+    {
+      title: 'Thống kê',
+      description: 'Trường, ngành học sinh chọn, nhóm Holland, khối thi',
+      icon: PieChart,
+      link: '/admin/statistics',
+      color: 'bg-blue-600'
+    },
+    {
+      title: 'Trường & ngành mong muốn',
+      description: 'Quản lý danh sách học sinh chọn khi làm test',
+      icon: School,
+      link: '/admin/options',
+      color: 'bg-emerald-600'
+    },
+    {
+      title: 'Câu hỏi Holland',
+      description: 'Thêm, sửa, xoá câu hỏi trong 6 nhóm R-I-A-S-E-C',
+      icon: ListChecks,
+      link: '/admin/holland-questions',
+      color: 'bg-violet-600'
     }
   ];
 
