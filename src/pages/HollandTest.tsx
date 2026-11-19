@@ -244,6 +244,7 @@ const HollandTest = () => {
       personalInfo.class.toLocaleLowerCase() === "admin"
     ) {
       navigate('/admin');
+      localStorage.setItem("token", "true");
       return;
     }
 

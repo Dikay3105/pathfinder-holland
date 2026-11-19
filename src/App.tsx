@@ -15,6 +15,7 @@ import Majors from "./pages/Admin/Majors";
 import StudentResults from "./pages/Admin/StudentResults";
 import OptionsManager from "./pages/Admin/OptionsManager";
 import Statistics from "./pages/Admin/Statistics";
+import ProtectedRoute from "./utils/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -29,7 +30,14 @@ const App = () => (
           <Route path="/holland-test" element={<HollandTest />} />
 
           {/* Admin Routes */}
-          <Route path="/admin" element={<AdminDashboard />} />
+          <Route
+            path="/admin/*"
+            element={
+              <ProtectedRoute>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/admin/exam-blocks" element={<ExamBlocks />} />
           <Route path="/admin/holland-questions" element={<HollandQuestions />} />
           <Route path="/admin/majors" element={<Majors />} />
