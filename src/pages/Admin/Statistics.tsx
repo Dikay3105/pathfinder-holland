@@ -2,15 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, FileSpreadsheet, Loader2, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -19,6 +10,8 @@ import { useToast } from '@/hooks/use-toast';
 import { adminApiService } from '@/services/adminApi';
 import { CountItem, DetailedStats, optionsApi } from '@/services/optionsApi';
 import { useRealtime } from '@/hooks/useRealtime';
+import { FieldGradeHeatmap, HollandHeatmap, ScoreDumbbell } from '@/components/stats/StatCharts';
+import { CATEGORICAL, ColumnChart, DonutChart, HBarChart, TrendChart } from '@/components/stats/MoreCharts';
 
 const ALL = '__all__';
 
@@ -127,92 +120,14 @@ function Section({
   className?: string;
 }) {
   return (
-    <Card className={className}>
+    // min-w-0: cho phép card trong grid co lại trên điện thoại (bảng rộng thì tự cuộn ngang bên trong)
+    <Card className={`min-w-0 ${className ?? ""}`}>
       <CardHeader className="p-4 pb-2 sm:p-6 sm:pb-3">
         <CardTitle className="text-base sm:text-lg">{title}</CardTitle>
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">{children}</CardContent>
     </Card>
-  );
-}
-
-/** Điền 0 cho các ngày không có bài nộp để trục thời gian đúng tỉ lệ. */
-function fillDays(data: CountItem[]): CountItem[] {
-  if (data.length < 2) return data;
-  const map = new Map(data.map(d => [d.name, d.count]));
-  const out: CountItem[] = [];
-  const cur = new Date(data[0].name + 'T00:00:00Z');
-  const end = new Date(data[data.length - 1].name + 'T00:00:00Z');
-  while (cur <= end && out.length < 1000) {
-    const key = cur.toISOString().slice(0, 10);
-    out.push({ name: key, count: map.get(key) ?? 0 });
-    cur.setUTCDate(cur.getUTCDate() + 1);
-  }
-  return out;
-}
-
-function TimelineChart({ data }: { data: CountItem[] }) {
-  const rows = fillDays(data).map(d => {
-    const date = new Date(d.name + 'T00:00:00');
-    return {
-      day: d.name,
-      label: date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit' }),
-      count: d.count,
-    };
-  });
-  if (!rows.length) return <p className="py-6 text-center text-sm text-muted-foreground">Chưa có dữ liệu</p>;
-
-  return (
-    <div className="h-56 w-full sm:h-64">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={rows} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-          <defs>
-            <linearGradient id="vizFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--viz-1)" stopOpacity={0.25} />
-              <stop offset="100%" stopColor="var(--viz-1)" stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
-          <XAxis
-            dataKey="label"
-            tickLine={false}
-            axisLine={false}
-            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-            minTickGap={24}
-          />
-          <YAxis
-            allowDecimals={false}
-            tickLine={false}
-            axisLine={false}
-            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-            width={40}
-          />
-          <Tooltip
-            cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '3 3' }}
-            contentStyle={{
-              borderRadius: 8,
-              border: '1px solid hsl(var(--border))',
-              background: 'hsl(var(--card))',
-              fontSize: 13,
-            }}
-            labelFormatter={(_, p) =>
-              p?.[0] ? new Date(p[0].payload.day + 'T00:00:00').toLocaleDateString('vi-VN') : ''
-            }
-            formatter={(v: number) => [`${fmt(v)} học sinh`, 'Số bài test']}
-          />
-          <Area
-            type="linear"
-            isAnimationActive={false}
-            dataKey="count"
-            stroke="var(--viz-1)"
-            strokeWidth={2}
-            fill="url(#vizFill)"
-            activeDot={{ r: 5, strokeWidth: 2, stroke: 'hsl(var(--card))' }}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
   );
 }
 
@@ -228,6 +143,7 @@ const Statistics = () => {
   const [classes, setClasses] = useState<string[]>([]);
   const [majorView, setMajorView] = useState<'all' | 'other'>('all');
   const [hollandView, setHollandView] = useState<'dominant' | 'average'>('dominant');
+  const [classGrade, setClassGrade] = useState<string>('12');
 
   useEffect(() => {
     adminApiService.getClasses().then(setClasses);
@@ -267,12 +183,6 @@ const Statistics = () => {
   const s = stats?.summary;
   const total = s?.totalStudents ?? 0;
 
-  const hollandItems = useMemo<CountItem[]>(() => {
-    if (!stats) return [];
-    return hollandView === 'dominant'
-      ? stats.holland.dominant.map(d => ({ name: `${d.type} · ${HOLLAND_NAMES[d.type]}`, count: d.count }))
-      : stats.holland.average.map(d => ({ name: `${d.type} · ${HOLLAND_NAMES[d.type]}`, count: d.value }));
-  }, [stats, hollandView]);
 
   const exportExcel = () => {
     if (!stats || !s) return;
@@ -308,6 +218,24 @@ const Statistics = () => {
     sheet('Khối thi', stats.examBlocks, 'Khối');
     sheet('Mã Holland', stats.holland.topCodes, 'Mã');
     sheet('Theo lớp', stats.byClass, 'Lớp');
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(
+        (stats.subjects ?? []).map(s => ({ 'Môn': s.subject, 'Số HS': s.n, 'Điểm hiện tại TB': s.avgCurrent, 'Điểm mục tiêu TB': s.avgTarget, 'Cần tăng': s.gap }))
+      ),
+      'Điểm theo môn'
+    );
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(
+        (stats.byGrade ?? []).map(g => ({
+          'Khối': g.grade,
+          'Số HS': g.withHolland,
+          ...Object.fromEntries(['R', 'I', 'A', 'S', 'E', 'C'].map(t => [t + ' (%)', g.withHolland ? Math.round(((g.dominant[t] || 0) / g.withHolland) * 1000) / 10 : 0])),
+        }))
+      ),
+      'Holland theo khối'
+    );
 
     const suffix = [schoolYear !== ALL && schoolYear, cls !== ALL && cls].filter(Boolean).join('_') || 'tat-ca';
     XLSX.writeFile(wb, `ThongKe_Holland_${suffix}.xlsx`);
@@ -409,6 +337,40 @@ const Statistics = () => {
             </div>
 
             <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+              <Section title="Học sinh theo khối lớp" description="Số học sinh đã làm test ở mỗi khối">
+                <DonutChart
+                  data={(stats.byGrade ?? [])
+                    .filter(g => g.total > 0)
+                    .map((g, i) => ({
+                      name: g.grade === 'Khác' ? 'Lớp khác' : `Khối ${g.grade}`,
+                      count: g.total,
+                      color: g.grade === 'Khác' ? '#c9c8c2' : CATEGORICAL[i],
+                    }))}
+                />
+              </Section>
+
+              <Section title="Nhóm trường mong muốn" description={`Trên ${fmt(s.withUniversity)} học sinh có chọn trường`}>
+                <HBarChart data={stats.universityTypes ?? []} total={s.withUniversity} />
+              </Section>
+            </div>
+
+            <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+              <Section
+                title="Lĩnh vực ngành mong muốn"
+                description="Gom ngành học sinh tự ghi (kể cả viết khác nhau) vào nhóm lĩnh vực"
+              >
+                <HBarChart data={stats.majorFields ?? []} total={s.withMajor} />
+              </Section>
+
+              <Section
+                title="Lĩnh vực ngành theo khối lớp"
+                description="So sánh nguyện vọng giữa lớp 10, 11, 12 (8 lĩnh vực phổ biến nhất)"
+              >
+                <FieldGradeHeatmap rows={stats.majorFieldsByGrade ?? []} />
+              </Section>
+            </div>
+
+            <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
               <Section title="Trường đại học được chọn nhiều nhất" description={`Trên ${fmt(s.withUniversity)} học sinh có chọn trường`}>
                 <RankedBars items={stats.byUniversity} total={s.withUniversity} />
               </Section>
@@ -453,11 +415,11 @@ const Statistics = () => {
                     <TabsTrigger value="average">Điểm trung bình</TabsTrigger>
                   </TabsList>
                 </Tabs>
-                <RankedBars
-                  items={hollandItems}
-                  total={hollandView === 'dominant' ? s.withHolland : 0}
-                  unit={hollandView === 'dominant' ? 'HS' : 'điểm'}
-                  showRank={false}
+                <ColumnChart
+                  data={(hollandView === 'dominant' ? stats.holland.dominant.map(d => ({ name: d.type, count: d.count }))
+                    : stats.holland.average.map(d => ({ name: d.type, count: d.value })))}
+                  unit={hollandView === 'dominant' ? 'học sinh' : 'điểm'}
+                  labelFormatter={name => `${name} · ${HOLLAND_NAMES[name] || ''}`}
                 />
               </Section>
 
@@ -467,17 +429,50 @@ const Statistics = () => {
             </div>
 
             <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-              <Section title="Khối thi được chọn" description="Một học sinh có thể chọn nhiều khối">
-                <RankedBars items={stats.examBlocks} total={total} />
+              <Section
+                title="Nhóm Holland nổi trội theo khối lớp"
+                description="% học sinh mỗi khối có nhóm đó cao điểm nhất (đồng điểm tính cho mọi nhóm bằng nhau)"
+              >
+                <HollandHeatmap rows={stats.byGrade ?? []} />
               </Section>
 
-              <Section title="Số học sinh theo lớp">
-                <RankedBars items={stats.byClass} total={total} limit={12} showRank={false} />
+              <Section
+                title="Điểm trung bình: hiện tại → mục tiêu"
+                description="Theo môn, chỉ tính học sinh đã nhập điểm; xếp theo khoảng cách cần cải thiện"
+              >
+                <ScoreDumbbell rows={stats.subjects ?? []} />
               </Section>
             </div>
 
-            <Section title="Số bài test theo ngày" description="Theo ngày nộp bài (giờ Việt Nam)">
-              <TimelineChart data={stats.byDay} />
+            <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+              <Section title="Khối thi được chọn" description="Một học sinh có thể chọn nhiều khối">
+                <ColumnChart data={stats.examBlocks.slice(0, 12).map(b => ({ name: b.name, count: b.count }))} />
+              </Section>
+
+              <Section title="Số học sinh theo lớp" description="Số học sinh đã làm test ở từng lớp">
+                <div className="mb-2 inline-flex rounded-md border p-0.5 text-sm">
+                  {['10', '11', '12', 'all'].map(g => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setClassGrade(g)}
+                      className={`rounded px-3 py-1 ${classGrade === g ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                    >
+                      {g === 'all' ? 'Tất cả' : `Khối ${g}`}
+                    </button>
+                  ))}
+                </div>
+                <ColumnChart
+                  data={stats.byClass
+                    .filter(c => classGrade === 'all' || c.name.startsWith(classGrade))
+                    .map(c => ({ name: c.name, count: c.count }))}
+                  height={260}
+                />
+              </Section>
+            </div>
+
+            <Section title="Số bài test theo thời gian" description="Theo ngày nộp bài (giờ Việt Nam)">
+              <TrendChart byDay={stats.byDay} />
             </Section>
           </div>
         ) : null}

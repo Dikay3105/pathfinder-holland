@@ -44,7 +44,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { optionsApi, OptionItem, OptionType } from '@/services/optionsApi';
+import { ToastAction } from '@/components/ui/toast';
+import { Checkbox } from '@/components/ui/checkbox';
+import { optionsApi, OptionItem, OptionType, ImportCandidate } from '@/services/optionsApi';
 import { normalizeVi } from '@/lib/textSearch';
 
 const TYPE_LABEL: Record<OptionType, { one: string; title: string }> = {
@@ -71,8 +73,16 @@ const OptionsManager = () => {
   const [adding, setAdding] = useState(false);
 
   const [importOpen, setImportOpen] = useState(false);
-  const [minCount, setMinCount] = useState(3);
+  const [minCount, setMinCount] = useState(5);
   const [importing, setImporting] = useState(false);
+  const [candidates, setCandidates] = useState<ImportCandidate[]>([]);
+  const [picked, setPicked] = useState<Record<string, string | false>>({}); // key = tên gợi ý → tên sẽ thêm (sửa được) | false
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Chọn nhiều để xoá
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkConfirm, setBulkConfirm] = useState(false);
 
   const [deleting, setDeleting] = useState<OptionItem | null>(null);
 
@@ -92,6 +102,8 @@ const OptionsManager = () => {
   useEffect(() => {
     setEditingId(null);
     setSearch('');
+    setSelectMode(false);
+    setSelected(new Set());
     load();
   }, [load]);
 
@@ -106,19 +118,44 @@ const OptionsManager = () => {
 
   const activeCount = items.filter(i => i.active).length;
 
+  /** Thông báo kèm nút "Hoàn tác" (xoá đúng các mục vừa thêm trong lần này) */
+  const toastWithUndo = (title: string, description: string, batchId?: string) => {
+    toast({
+      title,
+      description,
+      duration: 10000,
+      action: batchId ? (
+        <ToastAction
+          altText="Hoàn tác"
+          onClick={async () => {
+            try {
+              const n = await optionsApi.undoBatch(batchId);
+              toast({ title: 'Đã hoàn tác', description: `Xoá ${n} ${label.one} vừa thêm.` });
+              load();
+            } catch (err) {
+              toast({ title: 'Không hoàn tác được', description: (err as Error).message, variant: 'destructive' });
+            }
+          }}
+        >
+          Hoàn tác
+        </ToastAction>
+      ) : undefined,
+    });
+  };
+
   const handleAdd = async () => {
     const names = addText.split('\n').map(s => s.trim()).filter(Boolean);
     if (!names.length) return;
     setAdding(true);
     try {
-      const inserted = await optionsApi.create(type, names);
-      toast({
-        title: 'Đã thêm',
-        description:
-          inserted === names.length
-            ? `Thêm ${inserted} ${label.one}.`
-            : `Thêm ${inserted}/${names.length} ${label.one} (bỏ qua tên đã có).`,
-      });
+      const { inserted, batchId } = await optionsApi.create(type, names);
+      toastWithUndo(
+        'Đã thêm',
+        inserted === names.length
+          ? `Thêm ${inserted} ${label.one}.`
+          : `Thêm ${inserted}/${names.length} ${label.one} (bỏ qua tên đã có).`,
+        batchId
+      );
       setAddText('');
       setAddOpen(false);
       load();
@@ -172,28 +209,74 @@ const OptionsManager = () => {
 
   const importFromMajors = async () => {
     try {
-      const inserted = await optionsApi.importFromMajors();
-      toast({ title: 'Đã nhập', description: `Thêm ${inserted} ngành từ danh sách ngành Holland.` });
+      const { inserted, batchId } = await optionsApi.importFromMajors();
+      toastWithUndo('Đã nhập', `Thêm ${inserted} ngành từ danh sách ngành Holland.`, inserted ? batchId : undefined);
       load();
     } catch (err) {
       toast({ title: 'Lỗi', description: (err as Error).message, variant: 'destructive' });
     }
   };
 
+  // Xem trước gợi ý từ dữ liệu học sinh (tải lại khi đổi ngưỡng)
+  useEffect(() => {
+    if (!importOpen) return;
+    let cancelled = false;
+    setPreviewLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const list = await optionsApi.previewFromStudents(type, minCount);
+        if (cancelled) return;
+        setCandidates(list);
+        setPicked(Object.fromEntries(list.map(c => [c.name, c.name]))); // mặc định chọn hết ở ngưỡng hiện tại
+      } catch (err) {
+        if (!cancelled) toast({ title: 'Lỗi', description: (err as Error).message, variant: 'destructive' });
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [importOpen, minCount, type, toast]);
+
+  const pickedNames = Object.values(picked).filter((v): v is string => typeof v === 'string' && v.trim() !== '');
+
   const importFromStudents = async () => {
+    if (!pickedNames.length) return;
     setImporting(true);
     try {
-      const { inserted, candidates } = await optionsApi.importFromStudents(type, minCount);
-      toast({
-        title: 'Đã nhập',
-        description: `Tìm thấy ${candidates} tên được ghi ≥ ${minCount} lần, thêm mới ${inserted}.`,
-      });
+      const { inserted, batchId } = await optionsApi.create(type, pickedNames);
+      toastWithUndo('Đã nhập', `Thêm ${inserted} ${label.one} từ dữ liệu học sinh.`, batchId);
       setImportOpen(false);
       load();
     } catch (err) {
-      toast({ title: 'Lỗi', description: (err as Error).message, variant: 'destructive' });
+      toast({ title: 'Không nhập được', description: (err as Error).message, variant: 'destructive' });
     } finally {
       setImporting(false);
+    }
+  };
+
+  // ===== Chọn nhiều để xoá =====
+  const toggleSelected = (id: string) =>
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelected(new Set());
+  };
+  const confirmBulkDelete = async () => {
+    setBulkConfirm(false);
+    try {
+      const n = await optionsApi.bulkDelete([...selected]);
+      toast({ title: 'Đã xoá', description: `Xoá ${n} ${label.one}.` });
+      exitSelectMode();
+      load();
+    } catch (err) {
+      toast({ title: 'Không xoá được', description: (err as Error).message, variant: 'destructive' });
     }
   };
 
@@ -252,7 +335,7 @@ const OptionsManager = () => {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem className="py-2.5" onSelect={() => setImportOpen(true)}>
-                  Từ {label.one} học sinh đã tự nhập…
+                  Từ {label.one} học sinh đã tự nhập (xem trước)…
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -277,7 +360,44 @@ const OptionsManager = () => {
               {text}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+            className={`ml-auto rounded-full border px-3 py-1.5 transition-colors ${
+              selectMode ? 'border-primary bg-primary text-primary-foreground' : 'bg-card hover:bg-accent'
+            }`}
+          >
+            {selectMode ? 'Xong' : 'Chọn nhiều'}
+          </button>
         </div>
+
+        {/* Thanh thao tác khi chọn nhiều */}
+        {selectMode && (
+          <div className="sticky top-[60px] z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-card/95 px-3 py-2 text-sm shadow-sm backdrop-blur">
+            <span className="font-medium">Đã chọn {selected.size}</span>
+            <button
+              type="button"
+              className="rounded-md px-2 py-1 text-primary hover:bg-accent/40"
+              onClick={() => setSelected(new Set(visible.map(i => i._id)))}
+            >
+              Chọn tất cả ({visible.length})
+            </button>
+            {selected.size > 0 && (
+              <button type="button" className="rounded-md px-2 py-1 hover:bg-accent/40" onClick={() => setSelected(new Set())}>
+                Bỏ chọn
+              </button>
+            )}
+            <Button
+              size="sm"
+              variant="destructive"
+              className="ml-auto h-9"
+              disabled={!selected.size}
+              onClick={() => setBulkConfirm(true)}
+            >
+              <Trash2 className="mr-1 h-4 w-4" /> Xoá {selected.size || ''}
+            </Button>
+          </div>
+        )}
 
         {/* List */}
         <Card>
@@ -295,8 +415,25 @@ const OptionsManager = () => {
                 {visible.map(item => {
                   const isEditing = editingId === item._id;
                   return (
-                    <li key={item._id} className="flex min-h-14 items-center gap-2 px-3 py-2 sm:px-4">
-                      {isEditing ? (
+                    <li
+                      key={item._id}
+                      className={`flex min-h-14 items-center gap-2 px-3 py-2 sm:px-4 ${
+                        selectMode ? 'cursor-pointer hover:bg-accent/20' : ''
+                      } ${selectMode && selected.has(item._id) ? 'bg-primary/5' : ''}`}
+                      onClick={selectMode ? () => toggleSelected(item._id) : undefined}
+                    >
+                      {selectMode ? (
+                        <>
+                          <Checkbox
+                            checked={selected.has(item._id)}
+                            onCheckedChange={() => toggleSelected(item._id)}
+                            onClick={e => e.stopPropagation()}
+                            aria-label={`Chọn ${item.name}`}
+                            className="h-5 w-5"
+                          />
+                          <p className={`min-w-0 flex-1 leading-snug ${item.active ? '' : 'text-muted-foreground'}`}>{item.name}</p>
+                        </>
+                      ) : isEditing ? (
                         <>
                           <Input
                             value={editingName}
@@ -405,33 +542,112 @@ const OptionsManager = () => {
 
       {/* Import from students dialog */}
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="flex max-h-[90dvh] max-w-lg flex-col">
           <DialogHeader>
             <DialogTitle>Nhập {label.one} từ dữ liệu học sinh</DialogTitle>
             <DialogDescription>
-              Thêm các {label.one} học sinh đã tự ghi, xuất hiện từ N lần trở lên. Nên kiểm tra lại chính tả sau khi nhập.
+              Các cách viết khác nhau (hoa/thường, dấu, gạch nối) đã được gộp; câu trả lời như "Chưa biết" và {label.one} đã có
+              bị bỏ qua. Chọn mục muốn thêm, có thể sửa tên trước khi thêm.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="minCount">Số lần xuất hiện tối thiểu</Label>
-            <Input
-              id="minCount"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              value={minCount}
-              onChange={e => setMinCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className="h-11 text-base"
-            />
+
+          <div className="flex items-end gap-3">
+            <div className="w-32 space-y-1">
+              <Label htmlFor="minCount">Ít nhất (HS ghi)</Label>
+              <Input
+                id="minCount"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                value={minCount}
+                onChange={e => setMinCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                className="h-10 text-base"
+              />
+            </div>
+            <div className="ml-auto flex gap-1 text-sm">
+              <button type="button" className="rounded-md px-2 py-1 text-primary hover:bg-accent/40"
+                onClick={() => setPicked(Object.fromEntries(candidates.map(c => [c.name, c.name])))}>
+                Chọn hết
+              </button>
+              <button type="button" className="rounded-md px-2 py-1 hover:bg-accent/40"
+                onClick={() => setPicked(Object.fromEntries(candidates.map(c => [c.name, false])))}>
+                Bỏ hết
+              </button>
+            </div>
           </div>
+
+          <div className="min-h-[120px] flex-1 overflow-y-auto rounded-md border">
+            {previewLoading ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Đang tìm gợi ý…
+              </div>
+            ) : candidates.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                Không có {label.one} mới nào được ghi từ {minCount} lần trở lên.
+              </p>
+            ) : (
+              <ul className="divide-y">
+                {candidates.map(c => {
+                  const value = picked[c.name];
+                  const on = typeof value === 'string';
+                  return (
+                    <li key={c.name} className="flex items-center gap-2 px-3 py-2">
+                      <Checkbox
+                        checked={on}
+                        onCheckedChange={v => setPicked(p => ({ ...p, [c.name]: v ? c.name : false }))}
+                        aria-label={`Chọn ${c.name}`}
+                        className="h-5 w-5"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <Input
+                          value={on ? (value as string) : c.name}
+                          disabled={!on}
+                          onChange={e => setPicked(p => ({ ...p, [c.name]: e.target.value.slice(0, 150) }))}
+                          className="h-9 text-sm"
+                        />
+                        {c.variants.length > 1 && (
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground" title={c.variants.join(' · ')}>
+                            Gộp: {c.variants.slice(1).join(' · ')}
+                          </p>
+                        )}
+                      </div>
+                      <span className="w-14 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{c.count} HS</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setImportOpen(false)}>Huỷ</Button>
-            <Button onClick={importFromStudents} disabled={importing}>
-              {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Nhập
+            <Button onClick={importFromStudents} disabled={importing || !pickedNames.length}>
+              {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Thêm {pickedNames.length} mục
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Xác nhận xoá nhiều */}
+      <AlertDialog open={bulkConfirm} onOpenChange={setBulkConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xoá {selected.size} {label.one}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Học sinh đã chọn các mục này vẫn giữ nguyên dữ liệu. Thao tác này không hoàn tác được.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Huỷ</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Xoá
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete confirm */}
       <AlertDialog open={!!deleting} onOpenChange={o => !o && setDeleting(null)}>

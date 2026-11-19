@@ -40,8 +40,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"; // shadcn/ui
 import { useNavigate } from 'react-router-dom';
-import html2pdf from 'html2pdf.js';
-import ResultPDF from './ResultStep';
+import { ResultReport, OFFSCREEN_STYLE, ReportStudent } from '@/components/ResultReport';
+import { savePdf, pdfBlob, safeFileName } from '@/lib/pdfExport';
+import { apiService } from '@/services/api';
 import * as XLSX from 'xlsx';
 import { useRealtime } from '@/hooks/useRealtime';
 import { formatSchoolYear, getSchoolYear, getSchoolYearOptions } from '@/lib/schoolYear';
@@ -81,8 +82,48 @@ const StudentResults = () => {
   });
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const pdfRef = useRef<HTMLDivElement>(null);
+  // ===== PDF: render bản báo cáo A4 (ResultReport) ngoài màn hình với dữ liệu có sẵn, chờ vẽ xong rồi chụp =====
+  const [reportStudent, setReportStudent] = useState<ReportStudent | null>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    apiService
+      .getQuestions()
+      .then(qs => {
+        const counts: Record<string, number> = {};
+        qs.forEach(q => (counts[q.type] = (counts[q.type] || 0) + 1));
+        setQuestionCounts(counts);
+      })
+      .catch(() => { /* không có số câu thì chỉ ghi điểm */ });
+  }, []);
+
+  const pdfName = (s: any) => safeFileName('KetQua', s.name, s.class, s.number) + '.pdf';
+
+  /** Render báo cáo của 1 học sinh và trả về element để chụp */
+  const renderReport = async (student: any): Promise<HTMLElement | null> => {
+    setReportStudent({ ...student });
+    await new Promise(r => setTimeout(r, 60));
+    return reportRef.current;
+  };
+
+  /** Tạo zip PDF cho danh sách học sinh, báo tiến độ */
+  const zipReports = async (students: any[], zipName: string) => {
+    const zip = new JSZip();
+    const progress = toast({ title: 'Đang tạo PDF', description: `0/${students.length} học sinh…` });
+    try {
+      for (let i = 0; i < students.length; i++) {
+        const el = await renderReport(students[i]);
+        if (el) zip.file(pdfName(students[i]), await pdfBlob(el, pdfName(students[i])));
+        progress.update({ id: progress.id, title: 'Đang tạo PDF', description: `${i + 1}/${students.length} học sinh…` });
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipBlob, zipName);
+      progress.update({ id: progress.id, title: 'Hoàn tất', description: `Đã tải ${students.length} file PDF` });
+    } finally {
+      setReportStudent(null);
+    }
+  };
 
   /* ===== Realtime: học sinh nộp bài xong → hiện ngay trong bảng ===== */
   const [highlightIds, setHighlightIds] = useState<Set<string>>(new Set());
@@ -318,35 +359,7 @@ const StudentResults = () => {
       const students = response.results;
       if (!students.length) return toast({ title: 'Thông báo', description: 'Không có học sinh', variant: 'default' });
 
-      const zip = new JSZip();
-
-      for (const student of students) {
-        await new Promise<void>((resolve) => {
-          setSelectedId(student._id);
-
-          setTimeout(async () => {
-            if (pdfRef.current) {
-              const blob: Blob = await html2pdf()
-                .from(pdfRef.current)
-                .set({
-                  margin: [0.5, 0, 0.3, 0],
-                  filename: `KetQua_${student.name}_${student.class}_${student.number}.pdf`,
-                  html2canvas: { scale: 2 },
-                  jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-                })
-                .outputPdf("blob");
-
-              zip.file(`KetQua_${student.name}_${student.class}_${student.number}.pdf`, blob);
-            }
-            resolve();
-          }, 0);
-        });
-      }
-
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      saveAs(zipBlob, `KetQua_Lop_${className}.zip`);
-
-      toast({ title: 'Hoàn tất', description: 'Đã tải file zip', variant: 'default' });
+      await zipReports(students, safeFileName('KetQua_Lop', className, schoolYear) + '.zip');
     } catch (error) {
       toast({ title: 'Lỗi', description: 'Không thể tải file', variant: 'destructive' });
     }
@@ -484,22 +497,16 @@ const StudentResults = () => {
   // const handleDownloadPDF = (studentResult: StudentResult) => {
   //   navigate('/admin/student-results/' + studentResult._id + '?autoExport=true', { state: { student: studentResult } });
   // };
-  const handleDownloadPDF = (student: any) => {
-    // Render trước -> đợi fetch xong rồi export
-    setSelectedId(student._id);
-    setTimeout(() => {
-      if (pdfRef.current) {
-        html2pdf()
-          .from(pdfRef.current)
-          .set({
-            margin: [0.5, 0, 0.3, 0],
-            filename: `KetQua_${student.name}_${student.class}_${student.number}.pdf`,
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
-          })
-          .save();
-      }
-    }, 500)// cho fetch vài giây, hoặc dùng callback khi load xong
+  const handleDownloadPDF = async (student: any) => {
+    try {
+      const el = await renderReport(student);
+      if (el) await savePdf(el, pdfName(student));
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Lỗi', description: 'Không thể tạo PDF', variant: 'destructive' });
+    } finally {
+      setReportStudent(null);
+    }
   };
 
   // Giả sử results là mảng StudentResult đã lưu state
@@ -511,45 +518,7 @@ const StudentResults = () => {
         variant: "default",
       });
 
-      const zip = new JSZip();
-
-      for (const student of results) {
-        await new Promise<void>((resolve) => {
-          setSelectedId(student._id);
-
-          setTimeout(async () => {
-            if (pdfRef.current) {
-              // tạo blob thay vì save
-              const blob: Blob = await html2pdf()
-                .from(pdfRef.current)
-                .set({
-                  margin: [0.5, 0, 0.3, 0],
-                  filename: `KetQua_${student.name}_${student.class}_${student.number}.pdf`,
-                  html2canvas: { scale: 2 },
-                  jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-                })
-                .outputPdf("blob"); // <- lấy blob
-
-              // thêm file vào zip
-              zip.file(
-                `KetQua_${student.name}_${student.class}_${student.number}.pdf`,
-                blob
-              );
-            }
-            resolve();
-          }, 0); // thời gian chờ render
-        });
-      }
-
-      // Tạo zip blob và tải
-      const zipBlob = await zip.generateAsync({ type: "blob" });
-      saveAs(zipBlob, "DanhSachKetQua.zip");
-
-      toast({
-        title: "Hoàn tất",
-        description: "Đã tải file zip",
-        variant: "default",
-      });
+      await zipReports(results, 'DanhSachKetQua.zip');
     } catch (error) {
       toast({
         title: "Lỗi",
@@ -1082,9 +1051,11 @@ const StudentResults = () => {
 
       </main>
 
-      <div style={{ display: 'none' }}>
-        <ResultPDF ref={pdfRef} studentId={selectedId} />
-      </div>
+      {reportStudent && (
+        <div style={OFFSCREEN_STYLE} aria-hidden>
+          <ResultReport ref={reportRef} student={reportStudent} questionCounts={questionCounts} />
+        </div>
+      )}
 
     </div>
   );

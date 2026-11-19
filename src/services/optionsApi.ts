@@ -11,6 +11,13 @@ export interface OptionItem {
   active: boolean;
 }
 
+export interface ImportCandidate {
+  name: string;
+  count: number;
+  /** các cách viết học sinh đã dùng (đã gộp) */
+  variants: string[];
+}
+
 export interface CountItem {
   name: string;
   count: number;
@@ -43,6 +50,16 @@ export interface DetailedStats {
   examBlocks: CountItem[];
   byClass: CountItem[];
   byDay: CountItem[];
+  byGrade: { grade: string; total: number; withHolland: number; dominant: Record<string, number> }[];
+  majorFields: { name: string; count: number }[];
+  majorFieldsByGrade: { grade: string; total: number; values: Record<string, number> }[];
+  universityTypes: { name: string; count: number }[];
+  subjects: { subject: string; n: number; avgCurrent: number; avgTarget: number; gap: number }[];
+  composition: {
+    major: { catalog: number; other: number; none: number };
+    university: { catalog: number; other: number; none: number };
+    advice: { ai: number; fallback: number; pending: number; none: number };
+  };
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -74,12 +91,25 @@ export const optionsApi = {
     return body.data;
   },
 
-  async create(type: OptionType, names: string[]): Promise<number> {
-    const body = await request<{ inserted: number }>(`${API}/admin/options`, {
+  /** Thêm nhiều tên; batchId dùng để "Hoàn tác" cả lần thêm */
+  async create(type: OptionType, names: string[]): Promise<{ inserted: number; batchId: string }> {
+    return request(`${API}/admin/options`, {
       method: 'POST',
       body: JSON.stringify({ type, names }),
     });
-    return body.inserted;
+  },
+
+  async undoBatch(batchId: string): Promise<number> {
+    const body = await request<{ deleted: number }>(`${API}/admin/options/batch/${batchId}`, { method: 'DELETE' });
+    return body.deleted;
+  },
+
+  async bulkDelete(ids: string[]): Promise<number> {
+    const body = await request<{ deleted: number }>(`${API}/admin/options/bulk-delete`, {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+    return body.deleted;
   },
 
   async update(id: string, data: Partial<Pick<OptionItem, 'name' | 'active' | 'order'>>): Promise<OptionItem> {
@@ -94,16 +124,16 @@ export const optionsApi = {
     await request(`${API}/admin/options/${id}`, { method: 'DELETE' });
   },
 
-  async importFromMajors(): Promise<number> {
-    const body = await request<{ inserted: number }>(`${API}/admin/options/import-majors`, { method: 'POST' });
-    return body.inserted;
+  async importFromMajors(): Promise<{ inserted: number; batchId: string }> {
+    return request(`${API}/admin/options/import-majors`, { method: 'POST' });
   },
 
-  async importFromStudents(type: OptionType, minCount: number): Promise<{ inserted: number; candidates: number }> {
-    return request(`${API}/admin/options/import-students`, {
-      method: 'POST',
-      body: JSON.stringify({ type, minCount }),
-    });
+  /** Gợi ý tên học sinh tự nhập (đã gộp cách viết, bỏ câu trả lời rác và tên đã có) – chưa thêm gì */
+  async previewFromStudents(type: OptionType, minCount: number): Promise<ImportCandidate[]> {
+    const body = await request<{ data: ImportCandidate[] }>(
+      `${API}/admin/options/import-students/preview?type=${type}&minCount=${minCount}`
+    );
+    return body.data;
   },
 
   async getDetailedStats(params: { schoolYear?: string; class?: string }): Promise<DetailedStats> {

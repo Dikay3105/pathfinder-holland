@@ -187,3 +187,11 @@ body {
 .dark {
   --viz-1: #3987e5;
 }
+
+/*
+ * Sửa chữ bị tụt xuống trong PDF (html2canvas + Tailwind):
+ * html2canvas đo baseline của font bằng cách đặt 1 ảnh 1×1 (width="1" height="1") cạnh dòng chữ mẫu rồi lấy
+ * img.offsetTop - span.offsetTop. Preflight của Tailwind đặt img { display: block } → ảnh rớt xuống dòng dưới →
+ * baseline đo sai → mọi chữ trong ảnh chụp bị vẽ thấp xuống. Giữ ảnh đo này inline là đo đúng.
+ */
+img[width="1"][height="1"] { display: inline; }

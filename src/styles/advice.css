@@ -73,19 +73,18 @@
 
 .adv-section { break-inside: avoid-page; }
 .adv-h {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   margin: 0 0 10px;
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--adv-ink);
 }
 .adv-num {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  /* căn giữa bằng line-height (html2canvas chụp PDF lệch nếu dùng flex) */
+  display: inline-block;
+  vertical-align: middle;
+  margin: -3px 10px 0 0;
+  text-align: center;
+  line-height: 26px;
   width: 26px;
   height: 26px;
   border-radius: 999px;
@@ -108,18 +107,19 @@
 
 .adv-list { margin: 0; padding: 0; list-style: none; }
 .adv-list li { position: relative; padding-left: 20px; margin: 6px 0; }
+/* dấu chấm là ký tự chữ → luôn thẳng hàng với dòng chữ, cả trên web lẫn PDF */
 .adv-list li::before {
-  content: '';
+  content: '•';
   position: absolute;
-  left: 4px;
-  top: 0.62em;
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--adv-accent);
+  left: 3px;
+  top: 0;
+  font-size: 1.35em;
+  line-height: 1.22;
+  font-weight: 700;
+  color: var(--adv-accent);
 }
-.adv-list-good li::before { background: var(--adv-good); }
-.adv-list-warn li::before { background: var(--adv-warn); }
+.adv-list-good li::before { color: var(--adv-good); }
+.adv-list-warn li::before { color: var(--adv-warn); }
 
 .adv-muted { color: var(--adv-muted); font-size: 0.88em; }
 
@@ -185,9 +185,8 @@
   color: var(--adv-accent);
   font-size: 12px;
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  text-align: center;
+  line-height: 22px;
 }
 .adv-major-name { font-weight: 700; color: var(--adv-ink); margin-bottom: 4px; }
 .adv-major p { font-size: 14px; margin-bottom: 6px; }
@@ -270,4 +269,23 @@
 
 @media (prefers-reduced-motion: reduce) {
   .adv-enter, .adv-writing-dots span { animation: none; }
+}
+
+/* Con trỏ gõ máy */
+.adv-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 1px;
+  vertical-align: -0.15em;
+  background: hsl(234 62% 52%);
+  border-radius: 1px;
+  animation: adv-caret-blink 0.9s steps(1) infinite;
+}
+@keyframes adv-caret-blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .adv-caret { animation: none; }
 }

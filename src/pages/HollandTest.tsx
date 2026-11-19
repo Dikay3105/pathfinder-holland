@@ -19,6 +19,8 @@ import { SearchableSelect } from '@/components/SearchableSelect';
 import { optionsApi } from '@/services/optionsApi';
 import { useRealtime } from '@/hooks/useRealtime';
 import { AdviceView } from '@/components/AdviceView';
+import { ResultReport, OFFSCREEN_STYLE } from '@/components/ResultReport';
+import { savePdf, safeFileName } from '@/lib/pdfExport';
 import { processTopGroups } from '@/utils/processTopGroups';
 
 
@@ -1058,19 +1060,44 @@ const HollandTest = () => {
     );
   };
 
-  const exportPDF = () => {
-    console.log("Generating PDF...");
-    if (!pdfRef.current) return;
+  // ===== Xuất PDF: dùng bản báo cáo A4 riêng (components/ResultReport) thay vì chụp giao diện web =====
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
-    const options = {
-      margin: [0.5, 0, 0.3, 0],
-      filename: `KetQua_${personalInfo.name}_${personalInfo.class}_${personalInfo.number}.pdf`,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, scrollY: 0 },   // scale cao để chữ/ảnh sắc nét
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+  const questionCounts = Object.fromEntries(
+    Object.entries(groupedQuestions).map(([type, list]) => [type, list.length])
+  );
+
+  const reportStudent = (() => {
+    const api: any = testResult?.apiResponse;
+    const saved = api?.student ?? api ?? {};
+    return {
+      ...saved,
+      name: personalInfo.name,
+      class: personalInfo.class,
+      number: personalInfo.number,
+      university: personalInfo.university,
+      major: personalInfo.major,
+      selectedBlocks: testResult?.selectedBlocks ?? saved.selectedBlocks,
+      recommendedMajors: testResult?.compatibleMajors ?? saved.recommendedMajors,
+      advice: testResult?.advice ?? saved.advice,
     };
+  })();
 
-    html2pdf().set(options).from(pdfRef.current).save();
+  const exportPDF = async () => {
+    setExportingPdf(true);
+    try {
+      // đợi ResultReport được render ngoài màn hình
+      await new Promise(r => setTimeout(r, 50));
+      if (!reportRef.current) return;
+      await savePdf(reportRef.current, safeFileName('KetQua', personalInfo.name, personalInfo.class, personalInfo.number) + '.pdf');
+      toast({ title: 'Đã xuất PDF' });
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Không xuất được PDF', description: 'Vui lòng thử lại.', variant: 'destructive' });
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   const renderResultStep = () => (
@@ -1126,10 +1153,8 @@ const HollandTest = () => {
                           {hollandTypeDescriptions[item.type].description}
                         </div>
                       </div>
-                      <Badge
-                        className={`bg-education-${hollandTypeDescriptions[item.type].color} text-white`}
-                      >
-                        {item.score}/10
+                      <Badge className="bg-primary text-primary-foreground hover:bg-primary shrink-0 tabular-nums">
+                        {item.score}/{groupedQuestions[item.type]?.length || 10}
                       </Badge>
                     </div>
                   ))}
@@ -1227,7 +1252,7 @@ const HollandTest = () => {
             </div> */}
           </div>
 
-          {testResult?.scores && testResult.scores.length > 0 && (
+          {testResult?.scores && testResult.scores.some(s => s.currentScore > 0) && !testResult.advice?.includes('class="adv"') && (
             <div className="mt-8">
               <h3 className="text-xl font-bold mb-4">Lời khuyên về điểm số</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1264,13 +1289,15 @@ const HollandTest = () => {
         <Button
           onClick={exportPDF}
           variant="outline"
-          disabled={testResult?.adviceStatus === 'pending'}
+          disabled={testResult?.adviceStatus === 'pending' || exportingPdf}
           title={testResult?.adviceStatus === 'pending' ? 'Đợi AI viết xong lời khuyên để PDF có đủ nội dung' : undefined}
           className="no-print px-8 py-3 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
         >
           {testResult?.adviceStatus === 'pending'
             ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Đang chờ lời khuyên…</>
-            : <><Download className="w-5 h-5 mr-2" />Xuất PDF</>}
+            : exportingPdf
+              ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Đang tạo PDF…</>
+              : <><Download className="w-5 h-5 mr-2" />Xuất PDF</>}
         </Button>
         <Button
           onClick={resetTest}
@@ -1355,6 +1382,12 @@ const HollandTest = () => {
       </div>
 
       {renderBottomBar()}
+
+      {exportingPdf && (
+        <div style={OFFSCREEN_STYLE} aria-hidden>
+          <ResultReport ref={reportRef} student={reportStudent} questionCounts={questionCounts} />
+        </div>
+      )}
     </div>
   );
 };
