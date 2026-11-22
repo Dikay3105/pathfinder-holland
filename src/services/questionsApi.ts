@@ -10,6 +10,14 @@ export interface QuestionItem {
   type: HollandType;
 }
 
+export interface QuestionImportResult {
+  created: number;
+  updated: number;
+  unchanged: number;
+  errors: string[];
+  blocked: boolean;
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
@@ -41,4 +49,11 @@ export const questionsApi = {
     }).then(r => r.data),
 
   remove: (id: number) => request(`${API}/admin/questions/${id}`, { method: 'DELETE' }),
+
+  /** Nhập từ Excel: dòng có "Mã" trùng → cập nhật, không có mã → thêm mới */
+  importRows: (rows: Record<string, unknown>[], dryRun: boolean) =>
+    request<QuestionImportResult>(`${API}/admin/questions/import`, {
+      method: 'POST',
+      body: JSON.stringify({ rows, dryRun }),
+    }),
 };

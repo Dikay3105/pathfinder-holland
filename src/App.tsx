@@ -15,6 +15,7 @@ import Majors from "./pages/Admin/Majors";
 import StudentResults from "./pages/Admin/StudentResults";
 import OptionsManager from "./pages/Admin/OptionsManager";
 import Statistics from "./pages/Admin/Statistics";
+import RecommendationSettings from "./pages/Admin/RecommendationSettings";
 import ProtectedRoute from "./utils/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const App = () => (
           <Route path="/admin/student-results/:id" element={<HollandTest />} />
           <Route path="/admin/options" element={<OptionsManager />} />
           <Route path="/admin/statistics" element={<Statistics />} />
+          <Route path="/admin/settings" element={<RecommendationSettings />} />
 
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

@@ -18,6 +18,15 @@ export interface ImportCandidate {
   variants: string[];
 }
 
+export interface OptionImportResult {
+  created: number;
+  updated: number;
+  unchanged: number;
+  createdNames: string[];
+  errors: string[];
+  batchId: string | null;
+}
+
 export interface CountItem {
   name: string;
   count: number;
@@ -122,6 +131,14 @@ export const optionsApi = {
 
   async remove(id: string): Promise<void> {
     await request(`${API}/admin/options/${id}`, { method: 'DELETE' });
+  },
+
+  /** Nhập từ Excel: khớp tên → cập nhật hiển thị/thứ tự, tên mới → thêm (hoàn tác bằng batchId) */
+  async importRows(type: OptionType, rows: Record<string, unknown>[], dryRun: boolean): Promise<OptionImportResult> {
+    return request(`${API}/admin/options/import`, {
+      method: 'POST',
+      body: JSON.stringify({ type, rows, dryRun }),
+    });
   },
 
   async importFromMajors(): Promise<{ inserted: number; batchId: string }> {

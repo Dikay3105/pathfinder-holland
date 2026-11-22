@@ -1,3 +1,4 @@
+import type { AlternativeMajor, RankedMajor } from '@/services/catalogApi';
 // API Configuration - Replace these URLs with your actual API endpoints
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;// Replace with your API base URL
 
@@ -21,9 +22,14 @@ export interface SubmitResultRequest {
     class: string;
   };
   answers: { [questionId: number]: boolean };
+  /** Tổ hợp dùng được (backend tự tính lại từ môn thi) */
   selectedBlocks: string[];
+  /** Mã môn thi tự chọn + môn năng khiếu (Subject.code) */
+  electiveSubjects: string[];
+  aptitudeSubjects: string[];
   scores: Array<{
     subject: string;
+    code?: string;
     currentScore: number;
     targetScore: number;
   }>;
@@ -40,13 +46,10 @@ export interface SubmitResultRequest {
 export interface ResultResponse {
   success: boolean;
   message?: string;
-  recommendedMajors?: Array<{
-    _id: string;
-    name: string;
-    description: string;
-    examBlocks: string[];
-    hollandTypes: string[];
-  }>;
+  recommendedMajors?: RankedMajor[];
+  alternativeMajors?: AlternativeMajor[];
+  usableBlocks?: Array<{ name: string; subjects: string[]; aptitude: boolean }>;
+  hollandCode?: string;
   recommendationText?: string;
   topGroups?: Array<{ type: 'R' | 'I' | 'A' | 'S' | 'E' | 'C'; score: number }>;
   /** Rỗng khi adviceStatus = 'pending' (AI đang viết ở nền) */

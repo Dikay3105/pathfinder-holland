@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -9,6 +9,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -46,8 +47,10 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { Checkbox } from '@/components/ui/checkbox';
-import { optionsApi, OptionItem, OptionType, ImportCandidate } from '@/services/optionsApi';
+import { optionsApi, OptionItem, OptionType, ImportCandidate, OptionImportResult } from '@/services/optionsApi';
 import { normalizeVi } from '@/lib/textSearch';
+import { exportSheet, readSheet, requireColumns, SheetColumn } from '@/lib/excel';
+import ImportPreviewDialog from '@/components/ImportPreviewDialog';
 
 const TYPE_LABEL: Record<OptionType, { one: string; title: string }> = {
   university: { one: 'trường', title: 'Trường đại học' },
@@ -55,6 +58,13 @@ const TYPE_LABEL: Record<OptionType, { one: string; title: string }> = {
 };
 
 type FilterMode = 'all' | 'active' | 'hidden';
+
+type OptionKey = 'name' | 'active' | 'order';
+const COLUMNS: SheetColumn<OptionKey>[] = [
+  { key: 'name', header: 'Tên', width: 50, aliases: ['Tên trường', 'Trường', 'Tên ngành', 'Ngành'] },
+  { key: 'active', header: 'Hiển thị', width: 10, boolean: true, aliases: ['Đang hiển thị', 'Đang dùng'] },
+  { key: 'order', header: 'Thứ tự', width: 8, aliases: ['STT'] },
+];
 
 const OptionsManager = () => {
   const { toast } = useToast();
@@ -85,6 +95,11 @@ const OptionsManager = () => {
   const [bulkConfirm, setBulkConfirm] = useState(false);
 
   const [deleting, setDeleting] = useState<OptionItem | null>(null);
+
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [fileRows, setFileRows] = useState<Record<string, unknown>[] | null>(null);
+  const [filePreview, setFilePreview] = useState<OptionImportResult | null>(null);
+  const [fileImporting, setFileImporting] = useState(false);
 
   const label = TYPE_LABEL[type];
 
@@ -257,6 +272,45 @@ const OptionsManager = () => {
     }
   };
 
+  // ===== Excel =====
+  const exportExcel = () =>
+    exportSheet(type === 'university' ? 'TruongMongMuon' : 'NganhMongMuon', label.title, COLUMNS, items);
+
+  const onFile = async (file: File) => {
+    try {
+      const { rows, found } = await readSheet(file, COLUMNS);
+      requireColumns(found, COLUMNS, ['name']);
+      const named = rows.filter(r => String(r.name || '').trim());
+      if (!named.length) throw new Error('File không có dòng nào có tên');
+      setFilePreview(await optionsApi.importRows(type, named, true));
+      setFileRows(named);
+    } catch (err) {
+      toast({ title: 'Không đọc được file', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const closeFileImport = () => {
+    setFilePreview(null);
+    setFileRows(null);
+  };
+
+  const confirmFileImport = async () => {
+    if (!fileRows) return;
+    setFileImporting(true);
+    try {
+      const r = await optionsApi.importRows(type, fileRows, false);
+      toastWithUndo('Đã nhập file', `Thêm ${r.created} ${label.one}, cập nhật ${r.updated}.`, r.batchId || undefined);
+      closeFileImport();
+      load();
+    } catch (err) {
+      toast({ title: 'Không nhập được', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setFileImporting(false);
+    }
+  };
+
   // ===== Chọn nhiều để xoá =====
   const toggleSelected = (id: string) =>
     setSelected(prev => {
@@ -325,7 +379,7 @@ const OptionsManager = () => {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="h-11 flex-1 sm:flex-none">
-                  <Download className="mr-1 h-4 w-4" /> Nhập nhanh
+                  <Upload className="mr-1 h-4 w-4" /> Nhập nhanh
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-72">
@@ -337,8 +391,15 @@ const OptionsManager = () => {
                 <DropdownMenuItem className="py-2.5" onSelect={() => setImportOpen(true)}>
                   Từ {label.one} học sinh đã tự nhập (xem trước)…
                 </DropdownMenuItem>
+                <DropdownMenuItem className="py-2.5" onSelect={() => fileRef.current?.click()}>
+                  Từ file Excel (xem trước)…
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button variant="outline" className="h-11 flex-1 sm:flex-none" onClick={exportExcel} disabled={!items.length}>
+              <Download className="mr-1 h-4 w-4" /> Xuất Excel
+            </Button>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => e.target.files?.[0] && onFile(e.target.files[0])} />
           </div>
         </div>
 
@@ -650,6 +711,16 @@ const OptionsManager = () => {
       </AlertDialog>
 
       {/* Delete confirm */}
+      <ImportPreviewDialog
+        title={`Nhập ${label.title.toLowerCase()} từ Excel`}
+        description={`Khớp theo tên (không phân biệt dấu, hoa thường, gạch nối). Tên đã có → cập nhật cột Hiển thị (Có/Không) và Thứ tự nếu điền. Tên mới → thêm vào, có thể hoàn tác. Không xoá mục nào.`}
+        unit={label.one.charAt(0).toUpperCase() + label.one.slice(1)}
+        summary={filePreview}
+        busy={fileImporting}
+        onConfirm={confirmFileImport}
+        onClose={closeFileImport}
+      />
+
       <AlertDialog open={!!deleting} onOpenChange={o => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

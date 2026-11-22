@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { testBlocks, hollandTypeDescriptions, Major, universityNames } from '@/data/testData';
+import { hollandTypeDescriptions, universityNames } from '@/data/testData';
+import { catalogApi, deriveBlocks, PublicConfig, RankedMajor, AlternativeMajor } from '@/services/catalogApi';
+import { MajorRanking } from '@/components/MajorRanking';
 import { Check, BookOpen, GraduationCap, CheckCircle, BarChart3, Sparkles, ArrowRight, Target, Loader2, Download, MessageCircle } from 'lucide-react';
 import { apiService, QuestionResponse, SubmitResultRequest, ResultResponse } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
@@ -49,6 +51,7 @@ interface TestAnswers {
 
 interface ScoreInput {
   subject: string;
+  code?: string;
   currentScore: number;
   targetScore: number;
 }
@@ -56,6 +59,9 @@ interface ScoreInput {
 interface TestResult {
   topThreeTypes: Array<{ type: keyof HollandScores; score: number }>;
   compatibleMajors: any[]; // Will be populated from API
+  /** Có điểm phù hợp (matchScore) = kết quả xếp hạng mới; bản ghi cũ chỉ có tên ngành */
+  rankedMajors: RankedMajor[];
+  alternativeMajors: AlternativeMajor[];
   selectedBlocks: string[];
   scores: ScoreInput[];
   apiResponse?: ResultResponse;
@@ -76,7 +82,13 @@ const HollandTest = () => {
   const [step, setStep] = useState(1);
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ name: '', class: '', number: '', university: '', major: '', universityOther: false, majorOther: false });
   const [testAnswers, setTestAnswers] = useState<TestAnswers>({});
-  const [selectedBlocks, setSelectedBlocks] = useState<string[]>([]);
+  // Môn thi: Toán + Văn bắt buộc, học sinh chọn môn tự chọn (+ môn năng khiếu nếu có) → hệ thống tự suy ra tổ hợp
+  const [config, setConfig] = useState<PublicConfig | null>(null);
+  const [configError, setConfigError] = useState('');
+  const [electiveSubjects, setElectiveSubjects] = useState<string[]>([]);
+  const [aptitudeSubjects, setAptitudeSubjects] = useState<string[]>([]);
+  const [wantsAptitude, setWantsAptitude] = useState(false);
+  const selectedBlocks = deriveBlocks(config, electiveSubjects, wantsAptitude ? aptitudeSubjects : []).map(b => b.name);
   const [scores, setScores] = useState<ScoreInput[]>([]);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [universityOptions, setUniversityOptions] = useState<string[]>(universityNames);
@@ -111,9 +123,18 @@ const HollandTest = () => {
     }
   };
 
+  const loadConfig = () => {
+    setConfigError('');
+    catalogApi
+      .publicConfig()
+      .then(setConfig)
+      .catch(err => setConfigError(err instanceof Error ? err.message : 'Không tải được danh sách môn học'));
+  };
+
   // Load questions when component mounts
   useEffect(() => {
     loadQuestions();
+    loadConfig();
   }, []);
 
   // Lời khuyên AI chạy nền: nhận qua realtime, kèm polling dự phòng nếu kết nối realtime rớt
@@ -187,13 +208,16 @@ const HollandTest = () => {
         let res = await apiService.getStudentById(id);
         const student = res.data?.student ?? res.data; // BE trả về { success, data: student }
 
-        // ---- Áp dụng rule BE để tính topGroups ----
-        const topGroups: TopGroup[] = processTopGroups(student.hollandScores || {});
+        // ---- Nhóm nổi trội: lấy bản BE đã lưu, bản ghi cũ thì tính lại ----
+        const topGroups = student.topGroups?.length ? student.topGroups : processTopGroups(student.hollandScores || {});
+        const majors = student.recommendedMajors || [];
 
         // ---- Gán vào state ----
         const result: TestResult = {
           topThreeTypes: topGroups,   // giữ nguyên tên field để không ảnh hưởng chỗ khác
-          compatibleMajors: student.recommendedMajors || [],
+          compatibleMajors: majors,
+          rankedMajors: majors.filter((m: any) => typeof m?.matchScore === 'number'),
+          alternativeMajors: student.alternativeMajors || [],
           selectedBlocks: student.selectedBlocks || [],
           scores: student.scores || [],
           apiResponse: student,
@@ -300,38 +324,50 @@ const HollandTest = () => {
     }));
   };
 
-  const handleBlockToggle = (blockId: string) => {
-    setSelectedBlocks(prev =>
-      prev.includes(blockId)
-        ? prev.filter(id => id !== blockId)
-        : [...prev, blockId]
-    );
+  const electiveCount = config?.electiveCount ?? 2;
+
+  const toggleElective = (code: string) => {
+    setElectiveSubjects(prev => {
+      if (prev.includes(code)) return prev.filter(c => c !== code);
+      if (prev.length >= electiveCount) {
+        // đã đủ → thay môn chọn sớm nhất (bấm môn mới là đổi được, không phải bỏ chọn trước)
+        return [...prev.slice(1), code];
+      }
+      return [...prev, code];
+    });
+  };
+
+  const toggleAptitude = (code: string) => {
+    setAptitudeSubjects(prev => (prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]));
   };
 
   const handleBlockSelectionNext = () => {
-    if (selectedBlocks.length === 0) {
+    if (!config) {
+      toast({ title: 'Chưa tải được danh sách môn', description: 'Vui lòng thử lại.', variant: 'destructive' });
+      return;
+    }
+    if (electiveSubjects.length < electiveCount) {
       toast({
-        title: "Chưa chọn khối thi",
-        description: "Vui lòng chọn ít nhất một khối thi.",
-        variant: "destructive"
+        title: 'Chưa chọn đủ môn thi',
+        description: `Vui lòng chọn ${electiveCount} môn thi tự chọn (đã chọn ${electiveSubjects.length}).`,
+        variant: 'destructive'
       });
       return;
     }
+    if (wantsAptitude && aptitudeSubjects.length === 0) {
+      toast({ title: 'Chưa chọn môn năng khiếu', description: 'Chọn môn năng khiếu bạn sẽ thi, hoặc tắt mục thi năng khiếu.', variant: 'destructive' });
+      return;
+    }
 
-    // Get all subjects from selected blocks
-    const allSubjects = new Set<string>();
-    selectedBlocks.forEach(blockId => {
-      const block = testBlocks.find(b => b.id === blockId);
-      if (block) {
-        const subjects = block.name.match(/\(([^)]+)\)/)?.[1].split(', ') || [];
-        subjects.forEach(subject => allSubjects.add(subject));
-      }
+    // Môn cần nhập điểm: bắt buộc + tự chọn + năng khiếu (theo thứ tự admin sắp xếp)
+    const chosen = new Set([...electiveSubjects, ...(wantsAptitude ? aptitudeSubjects : [])]);
+    const subjects = config.subjects.filter(s => s.kind === 'required' || chosen.has(s.code));
+
+    // Giữ điểm đã nhập của các môn vẫn còn được chọn (khi quay lại đổi môn)
+    const initialScores = subjects.map(s => {
+      const old = scores.find(x => x.code === s.code);
+      return { subject: s.shortName || s.name, code: s.code, currentScore: old?.currentScore ?? 0, targetScore: old?.targetScore ?? 0 };
     });
-
-    // Giữ điểm đã nhập của các môn vẫn còn trong khối đã chọn (khi quay lại đổi khối)
-    const initialScores = Array.from(allSubjects).map(subject =>
-      scores.find(s => s.subject === subject) ?? { subject, currentScore: 0, targetScore: 0 }
-    );
 
     setScores(initialScores);
     setStep(4);
@@ -372,6 +408,8 @@ const HollandTest = () => {
         personalInfo,
         answers: testAnswers,
         selectedBlocks,
+        electiveSubjects,
+        aptitudeSubjects: wantsAptitude ? aptitudeSubjects : [],
         scores,
         hollandScores
       };
@@ -384,7 +422,9 @@ const HollandTest = () => {
         // ⚡ Lấy thẳng từ BE, không tự tính nữa
         topThreeTypes: apiResponse.topGroups || [],   // hoặc đổi tên sang topGroups nếu muốn
         compatibleMajors: apiResponse.recommendedMajors || [],
-        selectedBlocks,
+        rankedMajors: apiResponse.recommendedMajors || [],
+        alternativeMajors: apiResponse.alternativeMajors || [],
+        selectedBlocks: apiResponse.usableBlocks?.map(b => b.name) || selectedBlocks,
         scores,
         apiResponse,
         recommendationText: apiResponse.recommendationText,
@@ -427,7 +467,9 @@ const HollandTest = () => {
     setCurrentGroupIndex(0);
     setPersonalInfo({ name: '', class: '', number: '', university: '', major: '', universityOther: false, majorOther: false });
     setTestAnswers({});
-    setSelectedBlocks([]);
+    setElectiveSubjects([]);
+    setAptitudeSubjects([]);
+    setWantsAptitude(false);
     setScores([]);
     setScoreDrafts({});
     setTestResult(null);
@@ -884,41 +926,136 @@ const HollandTest = () => {
     );
   };
 
-  const renderBlockSelectionStep = () => (
-    <Card className="w-full max-w-4xl mx-auto shadow-medium overflow-hidden">
-      <CardHeader className="bg-gradient-secondary text-white px-4 py-4 sm:px-6 sm:py-5">
-        <CardTitle className="text-lg sm:text-2xl font-bold flex items-center gap-2">
-          <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
-          Chọn khối thi đại học
-        </CardTitle>
-        <p className="text-white/90 text-xs sm:text-sm">Chọn các khối bạn dự định xét tuyển (có thể chọn nhiều)</p>
-      </CardHeader>
-      <CardContent className="p-3 sm:p-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-          {testBlocks.map(block => {
-            const selected = selectedBlocks.includes(block.id);
-            const subjects = block.name.match(/\(([^)]+)\)/)?.[1] || block.name;
-            return (
-              <button
-                type="button"
-                key={block.id}
-                aria-pressed={selected}
-                onClick={() => handleBlockToggle(block.id)}
-                className={`relative rounded-lg border-2 p-3 text-left transition-colors active:scale-[0.98] ${selected
-                  ? 'border-primary bg-primary/10'
-                  : 'border-muted bg-background hover:border-primary/60'
-                  }`}
-              >
-                {selected && <CheckCircle className="absolute right-2 top-2 h-4 w-4 text-primary" />}
-                <div className="text-lg font-bold text-primary leading-none">{block.id}</div>
-                <div className="mt-1 text-xs sm:text-sm text-muted-foreground leading-snug">{subjects}</div>
-              </button>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
+  const chipClass = (selected: boolean) =>
+    `relative rounded-lg border-2 px-3 py-2.5 text-left text-sm sm:text-base font-medium transition-colors active:scale-[0.98] ${selected
+      ? 'border-primary bg-primary/10 text-primary'
+      : 'border-muted bg-background hover:border-primary/60'
+    }`;
+
+  const renderBlockSelectionStep = () => {
+    if (!config) {
+      return (
+        <Card className="w-full max-w-4xl mx-auto shadow-medium">
+          <CardContent className="flex flex-col items-center gap-3 p-8 text-center text-muted-foreground">
+            {configError ? (
+              <>
+                <p className="text-destructive">{configError}</p>
+                <Button variant="outline" onClick={loadConfig}>Thử lại</Button>
+              </>
+            ) : (
+              <><Loader2 className="h-5 w-5 animate-spin" /> Đang tải danh sách môn học…</>
+            )}
+          </CardContent>
+        </Card>
+      );
+    }
+    const required = config.subjects.filter(s => s.kind === 'required');
+    const electives = config.subjects.filter(s => s.kind === 'elective');
+    const aptitudeGroups = config.subjects
+      .filter(s => s.kind === 'aptitude')
+      .reduce((acc, s) => {
+        const g = s.group || 'Năng khiếu khác';
+        (acc[g] = acc[g] || []).push(s);
+        return acc;
+      }, {} as Record<string, PublicConfig['subjects']>);
+    const blocks = deriveBlocks(config, electiveSubjects, wantsAptitude ? aptitudeSubjects : []);
+
+    return (
+      <Card className="w-full max-w-4xl mx-auto shadow-medium overflow-hidden">
+        <CardHeader className="bg-gradient-secondary text-white px-4 py-4 sm:px-6 sm:py-5">
+          <CardTitle className="text-lg sm:text-2xl font-bold flex items-center gap-2">
+            <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
+            Môn thi tốt nghiệp của bạn
+          </CardTitle>
+          <p className="text-white/90 text-xs sm:text-sm">
+            Chọn môn bạn sẽ thi, hệ thống tự tìm các tổ hợp bạn xét tuyển được. Nếu chưa chắc, hãy chọn môn bạn đang học tốt nhất.
+          </p>
+        </CardHeader>
+        <CardContent className="p-3 sm:p-6 space-y-6">
+          <section>
+            <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Môn bắt buộc</h3>
+            <div className="flex flex-wrap gap-2">
+              {required.map(s => (
+                <span key={s.code} className="inline-flex items-center gap-1.5 rounded-lg border-2 border-primary/30 bg-primary/5 px-3 py-2 text-sm font-medium text-primary">
+                  <Check className="h-4 w-4" /> {s.name}
+                </span>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">Chọn {electiveCount} môn tự chọn</h3>
+              <span className={`text-sm tabular-nums ${electiveSubjects.length === electiveCount ? 'text-emerald-600 font-semibold' : 'text-muted-foreground'}`}>
+                {electiveSubjects.length}/{electiveCount}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              {electives.map(s => {
+                const selected = electiveSubjects.includes(s.code);
+                return (
+                  <button type="button" key={s.code} aria-pressed={selected} onClick={() => toggleElective(s.code)} className={chipClass(selected)}>
+                    {selected && <CheckCircle className="absolute right-2 top-2 h-4 w-4" />}
+                    <span className="pr-5 leading-snug">{s.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {Object.keys(aptitudeGroups).length > 0 && (
+            <section className="rounded-lg border bg-muted/40 p-3 sm:p-4">
+              <label className="flex cursor-pointer items-start gap-3">
+                <Checkbox checked={wantsAptitude} onCheckedChange={v => setWantsAptitude(v === true)} className="mt-0.5" />
+                <span>
+                  <span className="font-medium">Tôi sẽ thi năng khiếu</span>
+                  <span className="block text-sm text-muted-foreground">Vẽ, âm nhạc, thể thao, mầm non… (cho ngành Kiến trúc, Thiết kế, Sư phạm mầm non…)</span>
+                </span>
+              </label>
+              {wantsAptitude && (
+                <div className="mt-4 space-y-3">
+                  {Object.entries(aptitudeGroups).map(([group, list]) => (
+                    <div key={group}>
+                      <h4 className="mb-1.5 text-sm font-semibold text-muted-foreground">{group}</h4>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {list.map(s => {
+                          const selected = aptitudeSubjects.includes(s.code);
+                          return (
+                            <button type="button" key={s.code} aria-pressed={selected} onClick={() => toggleAptitude(s.code)} className={chipClass(selected)}>
+                              {selected && <CheckCircle className="absolute right-2 top-2 h-4 w-4" />}
+                              <span className="pr-5 leading-snug">{s.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          <section aria-live="polite">
+            <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
+              Tổ hợp bạn xét tuyển được {blocks.length > 0 && `(${blocks.length})`}
+            </h3>
+            {blocks.length ? (
+              <div className="flex flex-wrap gap-2">
+                {blocks.map(b => (
+                  <span key={b.name} className={`rounded-md border px-2 py-1 text-sm ${b.aptitude ? 'border-violet-200 bg-violet-50' : 'bg-background'}`}>
+                    <span className="font-bold text-primary">{b.name}</span>{' '}
+                    <span className="text-muted-foreground">{b.subjectNames.join(' – ')}</span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Chọn môn tự chọn để xem các tổ hợp.</p>
+            )}
+          </section>
+        </CardContent>
+      </Card>
+    );
+  };
 
   const excludedSubjects = [
 
@@ -1009,16 +1146,18 @@ const HollandTest = () => {
         : { label: 'Thông tin', onClick: () => goToStep(1) };
       info = `Đã chọn ${selected}/${currentQuestions.length}`;
       next = {
-        label: <>{isLast ? 'Chọn khối thi' : 'Nhóm tiếp'} <ArrowRight className="w-4 h-4 ml-1" /></>,
+        label: <>{isLast ? 'Chọn môn thi' : 'Nhóm tiếp'} <ArrowRight className="w-4 h-4 ml-1" /></>,
         onClick: handleNextGroup,
       };
     } else if (step === 3) {
       back = { label: 'Quay lại', onClick: () => goToStep(2) };
-      info = selectedBlocks.length ? `Đã chọn ${selectedBlocks.length} khối` : 'Chưa chọn khối';
+      info = electiveSubjects.length < electiveCount
+        ? `Đã chọn ${electiveSubjects.length}/${electiveCount} môn`
+        : `${selectedBlocks.length} tổ hợp xét tuyển được`;
       next = {
         label: <>Nhập điểm <ArrowRight className="w-4 h-4 ml-1" /></>,
         onClick: handleBlockSelectionNext,
-        disabled: selectedBlocks.length === 0,
+        disabled: !config || electiveSubjects.length < electiveCount,
       };
     } else if (step === 4) {
       back = { label: 'Quay lại', onClick: () => goToStep(3) };
@@ -1164,7 +1303,12 @@ const HollandTest = () => {
 
             {/* )} */}
 
-            {testResult?.recommendationText && (
+            {testResult && (testResult.rankedMajors.length > 0 || testResult.alternativeMajors.length > 0) && (
+              <MajorRanking ranked={testResult.rankedMajors} alternatives={testResult.alternativeMajors} />
+            )}
+
+            {/* Câu gợi ý: chỉ hiện khi không có bảng xếp hạng (bản ghi cũ / không có ngành phù hợp) */}
+            {testResult?.recommendationText && !testResult.rankedMajors.length && (
               <div className="mb-8">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <Target className="w-5 h-5" />
@@ -1328,7 +1472,7 @@ const HollandTest = () => {
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="truncate text-sm font-semibold text-primary">
-                    {step === 2 ? 'Trắc nghiệm Holland' : step === 3 ? 'Chọn khối thi' : 'Điểm số'}
+                    {step === 2 ? 'Trắc nghiệm Holland' : step === 3 ? 'Môn thi' : 'Điểm số'}
                   </p>
                   <span className="shrink-0 text-xs text-muted-foreground">Bước {step - 1}/3</span>
                 </div>

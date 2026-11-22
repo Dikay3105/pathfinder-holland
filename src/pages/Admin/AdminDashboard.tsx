@@ -7,13 +7,17 @@ import {
   BarChart3,
   PieChart,
   School,
-  ListChecks
+  ListChecks,
+  BookOpen,
+  GraduationCap,
+  SlidersHorizontal
 } from 'lucide-react';
 
 interface Stats {
   totalQuestions: number;
   totalMajors: number;
   totalStudents: number;
+  totalBlocks?: number;
 }
 
 const AdminDashboard = () => {
@@ -49,6 +53,27 @@ const AdminDashboard = () => {
       icon: ListChecks,
       link: '/admin/holland-questions',
       color: 'bg-violet-600'
+    },
+    {
+      title: 'Ngành học',
+      description: 'Nhóm Holland, tổ hợp, điểm chuẩn của từng ngành (nhập/xuất Excel)',
+      icon: GraduationCap,
+      link: '/admin/majors',
+      color: 'bg-rose-600'
+    },
+    {
+      title: 'Môn học & tổ hợp',
+      description: 'Môn thi bắt buộc, tự chọn, năng khiếu và các tổ hợp xét tuyển',
+      icon: BookOpen,
+      link: '/admin/exam-blocks',
+      color: 'bg-cyan-600'
+    },
+    {
+      title: 'Cấu hình tư vấn',
+      description: 'Trọng số xếp hạng ngành, quy tắc nhóm Holland, lời khuyên AI, chạy thử',
+      icon: SlidersHorizontal,
+      link: '/admin/settings',
+      color: 'bg-slate-700'
     }
   ];
 
@@ -128,12 +153,12 @@ const AdminDashboard = () => {
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Tổng Khối thi
+                    Tổ hợp xét tuyển
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">20</div>
-                  <p className="text-xs text-muted-foreground">khối thi hiện có</p>
+                  <div className="text-2xl font-bold">{stats.totalBlocks ?? '—'}</div>
+                  <p className="text-xs text-muted-foreground">tổ hợp đang dùng</p>
                 </CardContent>
               </Card>
 

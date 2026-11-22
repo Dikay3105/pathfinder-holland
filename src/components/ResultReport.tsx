@@ -24,7 +24,13 @@ export interface ReportStudent {
   major?: string;
   selectedBlocks?: string[];
   hollandScores?: Record<string, number>;
-  recommendedMajors?: Array<{ name?: string }>;
+  topGroups?: Array<{ type: string; score: number }>;
+  recommendedMajors?: Array<{
+    name?: string;
+    matchScore?: number;
+    matchedGroups?: string[];
+    academic?: { block?: string; total?: number | null } | null;
+  }>;
   advice?: string;
 }
 
@@ -46,9 +52,10 @@ const fmtDate = (d?: string | Date) => {
  */
 export const ResultReport = forwardRef<HTMLDivElement, ResultReportProps>(({ student, questionCounts }, ref) => {
   const scores = student.hollandScores || {};
-  const top = processTopGroups(scores as Record<string, number>);
+  const top = student.topGroups?.length ? student.topGroups : processTopGroups(scores as Record<string, number>);
   const code = top.map(t => t.type).join('');
-  const majors = (student.recommendedMajors || []).map(m => m?.name).filter(Boolean) as string[];
+  const ranked = (student.recommendedMajors || []).filter(m => typeof m?.matchScore === 'number');
+  const majors = ranked.length ? [] : ((student.recommendedMajors || []).map(m => m?.name).filter(Boolean) as string[]);
   const hasAdvice = !!student.advice?.trim();
 
   const info: Array<[string, string]> = [
@@ -56,7 +63,7 @@ export const ResultReport = forwardRef<HTMLDivElement, ResultReportProps>(({ stu
     ['Lớp', `${student.class || ''}${student.number ? ` · Danh số ${student.number}` : ''}`],
     ['Niên khoá', formatSchoolYear(student.schoolYear)],
     ['Ngày làm test', fmtDate(student.createdAt) || fmtDate(new Date())],
-    ['Khối thi đã chọn', (student.selectedBlocks || []).join(', ') || '—'],
+    ['Tổ hợp xét tuyển', (student.selectedBlocks || []).join(', ') || '—'],
     ['Nguyện vọng', [student.major, student.university].filter(Boolean).join(' · ') || '—'],
   ];
 
@@ -117,6 +124,30 @@ export const ResultReport = forwardRef<HTMLDivElement, ResultReportProps>(({ stu
           <p className="r-muted">Bạn không thiên hẳn về nhóm Holland nào. Hãy trao đổi thêm với giáo viên.</p>
         )}
       </section>
+
+      {/* Ngành xếp hạng theo độ phù hợp */}
+      {ranked.length > 0 && (
+        <section className="r-block r-avoid">
+          <h2 className="r-h2">Ngành phù hợp (xếp theo độ phù hợp)</h2>
+          <table className="r-info">
+            <tbody>
+              {ranked.map((m, i) => (
+                <tr key={`${m.name}-${i}`}>
+                  <th style={{ width: 28 }}>{i + 1}</th>
+                  <td>
+                    <strong>{m.name}</strong>
+                    <div className="r-muted">
+                      Khớp nhóm {(m.matchedGroups || []).join(', ')}
+                      {m.academic?.block && ` · ${m.academic.block}${m.academic.total != null ? ` = ${String(m.academic.total).replace('.', ',')}/30` : ''}`}
+                    </div>
+                  </td>
+                  <td style={{ width: 60, textAlign: 'right', fontWeight: 700 }}>{m.matchScore}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {/* Lời khuyên (đã gồm điểm số, phân tích Holland, ngành, lộ trình...) */}
       {hasAdvice && (

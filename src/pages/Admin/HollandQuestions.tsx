@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Check, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, Download, Loader2, Pencil, Plus, Search, Trash2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,8 +25,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { questionsApi, QuestionItem, HollandType } from '@/services/questionsApi';
+import { questionsApi, QuestionItem, HollandType, QuestionImportResult } from '@/services/questionsApi';
 import { normalizeVi } from '@/lib/textSearch';
+import { exportSheet, readSheet, requireColumns, SheetColumn } from '@/lib/excel';
+import ImportPreviewDialog from '@/components/ImportPreviewDialog';
 
 const GROUPS: { type: HollandType; short: string; name: string; hint: string }[] = [
   { type: 'R', short: 'Kỹ thuật', name: 'Realistic – Kỹ thuật, thực tế', hint: 'Làm việc với máy móc, dụng cụ, công việc tay chân, ngoài trời' },
@@ -35,6 +37,14 @@ const GROUPS: { type: HollandType; short: string; name: string; hint: string }[]
   { type: 'S', short: 'Xã hội', name: 'Social – Xã hội, hỗ trợ', hint: 'Giúp đỡ, chăm sóc, giảng dạy, làm việc với con người' },
   { type: 'E', short: 'Quản lý', name: 'Enterprising – Quản lý, kinh doanh', hint: 'Lãnh đạo, thuyết phục, kinh doanh, tổ chức' },
   { type: 'C', short: 'Nghiệp vụ', name: 'Conventional – Nghiệp vụ, tổ chức', hint: 'Làm việc theo quy trình, sắp xếp, dữ liệu, giấy tờ' },
+];
+
+type QuestionKey = 'id' | 'type' | 'groupName' | 'text';
+const COLUMNS: SheetColumn<QuestionKey>[] = [
+  { key: 'id', header: 'Mã', width: 6, aliases: ['ID', 'STT'] },
+  { key: 'type', header: 'Nhóm', width: 7, aliases: ['Nhóm Holland', 'Loại'] },
+  { key: 'groupName', header: 'Tên nhóm', width: 14, exportOnly: true },
+  { key: 'text', header: 'Câu hỏi', width: 90, aliases: ['Nội dung', 'Nội dung câu hỏi'] },
 ];
 
 const HollandQuestions = () => {
@@ -54,6 +64,11 @@ const HollandQuestions = () => {
   const [adding, setAdding] = useState(false);
 
   const [deleting, setDeleting] = useState<QuestionItem | null>(null);
+
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importRows, setImportRows] = useState<Record<string, unknown>[] | null>(null);
+  const [importPreview, setImportPreview] = useState<QuestionImportResult | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,6 +161,51 @@ const HollandQuestions = () => {
     }
   };
 
+  /* ---------- Excel ---------- */
+  const exportExcel = () =>
+    exportSheet(
+      'CauHoiHolland',
+      'Câu hỏi',
+      COLUMNS,
+      [...questions]
+        .sort((a, b) => GROUPS.findIndex(g => g.type === a.type) - GROUPS.findIndex(g => g.type === b.type) || a.id - b.id)
+        .map(q => ({ ...q, groupName: GROUPS.find(g => g.type === q.type)?.short }))
+    );
+
+  const onFile = async (file: File) => {
+    try {
+      const { rows, found } = await readSheet(file, COLUMNS);
+      requireColumns(found, COLUMNS, ['text']);
+      if (!rows.length) throw new Error('File trống');
+      setImportPreview(await questionsApi.importRows(rows, true));
+      setImportRows(rows);
+    } catch (err) {
+      toast({ title: 'Không đọc được file', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const closeImport = () => {
+    setImportPreview(null);
+    setImportRows(null);
+  };
+
+  const confirmImport = async () => {
+    if (!importRows) return;
+    setImporting(true);
+    try {
+      const r = await questionsApi.importRows(importRows, false);
+      toast({ title: 'Đã nhập file', description: `Thêm ${r.created} câu, cập nhật ${r.updated} câu.` });
+      closeImport();
+      await load();
+    } catch (err) {
+      toast({ title: 'Không nhập được', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="sticky top-0 z-20 border-b bg-card/95 backdrop-blur">
@@ -161,8 +221,15 @@ const HollandQuestions = () => {
               {questions.length} câu hỏi · 6 nhóm · học sinh làm lần lượt từng nhóm
             </p>
           </div>
+          <Button variant="outline" className="h-10" onClick={exportExcel} disabled={!questions.length}>
+            <Download className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Xuất Excel</span>
+          </Button>
+          <Button variant="outline" className="h-10" onClick={() => fileRef.current?.click()}>
+            <Upload className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Nhập Excel</span>
+          </Button>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => e.target.files?.[0] && onFile(e.target.files[0])} />
           <Button className="h-10" onClick={() => setAddOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" /> Thêm
+            <Plus className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Thêm</span>
           </Button>
         </div>
       </header>
@@ -345,6 +412,16 @@ const HollandQuestions = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImportPreviewDialog
+        title="Nhập câu hỏi Holland"
+        description="Dòng có Mã trùng câu đang có → cập nhật nội dung/nhóm. Dòng không có Mã → thêm câu mới (bỏ qua câu trùng nội dung trong cùng nhóm). Nhóm ghi R, I, A, S, E hoặc C. Không xoá câu nào."
+        unit="Câu hỏi"
+        summary={importPreview}
+        busy={importing}
+        onConfirm={confirmImport}
+        onClose={closeImport}
+      />
 
       <AlertDialog open={!!deleting} onOpenChange={o => !o && setDeleting(null)}>
         <AlertDialogContent>
