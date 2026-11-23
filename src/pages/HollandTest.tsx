@@ -143,6 +143,8 @@ const HollandTest = () => {
     setTestResult(prev => (prev && prev.studentId === studentId ? { ...prev, advice, adviceStatus } : prev));
   };
   // Nghe kênh riêng của học sinh này: chữ AI đang viết (progress), xoá khi đổi model (reset), bản cuối (student:advice)
+  // Vị trí trong hàng đợi AI lúc đông: null = chưa biết, 0 = AI đang viết, n = đang xếp thứ n
+  const [queuePos, setQueuePos] = useState<number | null>(null);
   const updatePending = (sid: string, advice: string) =>
     setTestResult(prev =>
       prev && prev.studentId === sid && prev.adviceStatus === 'pending' ? { ...prev, advice } : prev
@@ -151,6 +153,9 @@ const HollandTest = () => {
     {
       'advice:progress': ({ id: sid, html }) => updatePending(sid, html),
       'advice:reset': ({ id: sid }) => updatePending(sid, ''),
+      'advice:queued': ({ id: sid, position }) => {
+        if (sid === testResult?.studentId) setQueuePos(Number(position));
+      },
       'student:advice': ({ id: sid, advice, adviceStatus }) => applyAdvice(sid, advice, adviceStatus),
     },
     advicePending,
@@ -172,7 +177,7 @@ const HollandTest = () => {
       } catch {
         /* thử lại lần sau */
       }
-      if (tries >= 30) {
+      if (tries >= 100) { // ~10 phút (lúc đông có thể phải xếp hàng)
         clearInterval(timer);
         setTestResult(prev => (prev && prev.studentId === sid ? { ...prev, adviceStatus: 'timeout' } : prev));
       }
@@ -1335,7 +1340,9 @@ const HollandTest = () => {
                     <div className="no-print" aria-live="polite">
                       <div className="flex items-center gap-3 rounded-lg bg-primary/10 px-4 py-3 text-sm font-medium text-primary">
                         <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                        AI đang viết lời khuyên riêng cho bạn… thường mất 30–60 giây, bạn cứ xem kết quả bên trên nhé.
+                        {queuePos && queuePos > 0
+                          ? `Đang đông học sinh nộp bài – bạn đang xếp hàng thứ ${queuePos}. AI sẽ viết ngay khi tới lượt, bạn cứ xem kết quả bên trên nhé.`
+                          : 'AI đang viết lời khuyên riêng cho bạn… thường mất 30–60 giây, bạn cứ xem kết quả bên trên nhé.'}
                       </div>
                       <div className="mt-5 space-y-3 animate-pulse">
                         <div className="h-4 w-1/3 rounded bg-muted" />
