@@ -49,8 +49,10 @@ import * as XLSX from 'xlsx';
 import { useRealtime } from '@/hooks/useRealtime';
 import { formatSchoolYear, getSchoolYear, getSchoolYearOptions } from '@/lib/schoolYear';
 
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100];
+const PAGE_SIZE_KEY = 'studentResults.pageSize';
 
-
+type PageData = { results: StudentResult[]; total: number; page: number; totalPages: number };
 
 const StudentResults = () => {
   const [openDetail, setOpenDetail] = useState(false);
@@ -58,9 +60,20 @@ const StudentResults = () => {
   const [showHiddenResult, setShowHiddenResult] = useState(false);
   const hiddenRef = useRef<HTMLDivElement>(null);
   const [results, setResults] = useState<StudentResult[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
+  const [loading, setLoading] = useState(true); // chỉ dùng cho lần tải đầu tiên
+  const [pageLoading, setPageLoading] = useState(false); // chuyển trang / tìm kiếm: giữ bảng cũ, chỉ làm mờ
+  const [pageSize, setPageSize] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem(PAGE_SIZE_KEY));
+      return PAGE_SIZE_OPTIONS.includes(saved) ? saved : 10;
+    } catch {
+      return 10;
+    }
+  });
+  // Bộ lọc đang áp dụng cho danh sách (null = xem tất cả). Tách khỏi ô nhập để chuyển trang không mất bộ lọc.
+  const [appliedFilters, setAppliedFilters] = useState<SearchFilters | null>(null);
+  const pageCacheRef = useRef(new Map<string, Promise<PageData>>());
+  const requestIdRef = useRef(0);
   const [classes, setClasses] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedSchoolYear, setSelectedSchoolYear] = useState<string>('');
@@ -142,21 +155,18 @@ const StudentResults = () => {
     }, 8000);
   };
 
-  const hasActiveFilters = () =>
-    Boolean(
-      searchFilters.studentName || searchFilters.studentClass || searchFilters.studentNumber ||
-      searchFilters.dateFrom || searchFilters.dateTo || searchFilters.schoolYear
-    );
+  const hasActiveFilters = () => appliedFilters !== null;
 
   const realtimeConnected = useRealtime({
     'student:upserted': ({ created, student }: { created: boolean; student: any }) => {
       if (!student?._id) return;
+      pageCacheRef.current.clear(); // dữ liệu đã đổi → bỏ cache các trang
       const exists = results.some(r => r._id === student._id);
 
       if (exists) {
         setResults(prev => prev.map(r => (r._id === student._id ? student : r)));
       } else if (created && pagination.page <= 1 && !hasActiveFilters()) {
-        const limit = searchFilters.limit || 5;
+        const limit = pageSize;
         setResults(prev => [student, ...prev].slice(0, limit));
         setPagination(prev => {
           const total = prev.total + 1;
@@ -175,10 +185,12 @@ const StudentResults = () => {
     },
     // AI viết xong lời khuyên (chạy nền) → cập nhật dữ liệu, không bật thông báo
     'student:advice': ({ id, advice, adviceStatus }: { id: string; advice: string; adviceStatus: string }) => {
+      pageCacheRef.current.clear();
       setResults(prev => prev.map(r => (r._id === id ? ({ ...r, advice, adviceStatus } as any) : r)));
       setSelectedStudent((prev: any) => (prev?._id === id ? { ...prev, advice, adviceStatus } : prev));
     },
     'student:deleted': ({ id }: { id: string }) => {
+      pageCacheRef.current.clear();
       if (!results.some(r => r._id === id)) return;
       setResults(prev => prev.filter(r => r._id !== id));
       setPagination(prev => ({ ...prev, total: Math.max(prev.total - 1, 0) }));
@@ -187,25 +199,11 @@ const StudentResults = () => {
 
   const reloadAfterRealtime = () => {
     setPendingNew(0);
-    if (hasActiveFilters()) handleSearch(1);
-    else fetchResults(1);
+    loadPage(1, { fresh: true });
   };
 
   useEffect(() => {
-    try {
-      // setLoading(true);
-      fetchResults();
-    } catch (error) {
-      toast({
-        title: 'Lỗi',
-        description: 'Không thể tải danh sách kết quả',
-        variant: 'destructive'
-      });
-    } finally {
-      // setTimeout(() => {
-      //   setLoading(false);
-      // }, 500);
-    }
+    loadPage(1);
   }, []);
 
   useEffect(() => {
@@ -256,7 +254,7 @@ const StudentResults = () => {
               await adminApiService.deleteStudent(studentId);
 
               // cập nhật state để bảng refresh
-              fetchResults(pagination.page);
+              loadPage(pagination.page || 1, { fresh: true });
               toast({
                 title: 'Thành công',
                 description: 'Đã xóa học sinh',
@@ -276,70 +274,90 @@ const StudentResults = () => {
     });
   };
 
-  const fetchResults = async (page: number = 1) => {
+  /** Lấy 1 trang (có cache theo bộ lọc + số dòng + trang, gộp các request trùng nhau) */
+  const requestPage = (filters: SearchFilters | null, page: number, size: number): Promise<PageData> => {
+    const key = JSON.stringify([filters, page, size]);
+    const cached = pageCacheRef.current.get(key);
+    if (cached) return cached;
+    const req = filters
+      ? adminApiService.searchStudentResults({ ...filters, page, limit: size })
+      : adminApiService.getStudentResults(page, size);
+    pageCacheRef.current.set(key, req);
+    req.catch(() => pageCacheRef.current.delete(key));
+    return req;
+  };
+
+  /**
+   * Hiển thị 1 trang. Không thay bảng bằng màn hình loading (tránh nhảy lên đầu trang):
+   * trang đã cache thì hiện ngay, chưa có thì giữ bảng cũ làm mờ đến khi có dữ liệu.
+   */
+  const loadPage = async (
+    page: number,
+    opts: { filters?: SearchFilters | null; size?: number; fresh?: boolean } = {}
+  ) => {
+    const filters = opts.filters !== undefined ? opts.filters : appliedFilters;
+    const size = opts.size ?? pageSize;
+    if (opts.fresh) pageCacheRef.current.clear();
+
+    const id = ++requestIdRef.current;
+    const isCached = pageCacheRef.current.has(JSON.stringify([filters, page, size]));
+    if (!isCached) setPageLoading(true);
+
     try {
-      setLoading(true);
-      const data = await adminApiService.getStudentResults(page);
+      const data = await requestPage(filters, page, size);
+      if (id !== requestIdRef.current) return; // đã có yêu cầu mới hơn
+
+      // Trang hiện tại bị trống (vd. vừa xóa dòng cuối của trang cuối) → lùi về trang cuối còn dữ liệu
+      if (data.results.length === 0 && data.totalPages > 0 && page > data.totalPages) {
+        loadPage(data.totalPages, { filters, size });
+        return;
+      }
+
       setResults(data.results);
-      setPagination({
-        total: data.total,
-        page: data.page,
-        totalPages: data.totalPages,
-      });
+      setPagination(
+        data.results.length === 0
+          ? { total: 0, page: 0, totalPages: 0 }
+          : { total: data.total, page: data.page, totalPages: data.totalPages }
+      );
+
+      // Tải trước trang kế tiếp để bấm "Sau" hiện ngay
+      if (data.page < data.totalPages) requestPage(filters, data.page + 1, size).catch(() => { });
     } catch (error) {
-      toast({
-        title: 'Lỗi',
-        description: 'Không thể tải danh sách kết quả',
-        variant: 'destructive'
-      });
+      if (id === requestIdRef.current) {
+        toast({
+          title: 'Lỗi',
+          description: filters ? 'Không thể tìm kiếm kết quả' : 'Không thể tải danh sách kết quả',
+          variant: 'destructive',
+        });
+      }
     } finally {
-      setLoading(false);
+      if (id === requestIdRef.current) {
+        setPageLoading(false);
+        setLoading(false);
+      }
     }
   };
 
-  const handleSearch = async (pageNum: number) => {
-    try {
-      setResults([]); // xóa kết quả cũ
-      setSearchLoading(true);
-      setIsSearching(true);
+  const handleSearch = () => {
+    const { page: _p, limit: _l, ...rest } = searchFilters;
+    const filters: SearchFilters = { ...rest };
+    if (!filters.schoolYear) delete filters.schoolYear; // để trống = tất cả niên khóa
+    setAppliedFilters(filters);
+    loadPage(1, { filters, fresh: true });
+  };
 
-      // tạo object mới với page mới
-      const filters = { ...searchFilters, page: pageNum, limit: 5 };
-      if (!filters.schoolYear) {
-        delete filters.schoolYear; // xóa trường schoolYear nếu là 0 để tìm tất cả
-      }
-      console.log(filters);
+  const handlePageSizeChange = (size: number) => {
+    // Giữ dòng đầu tiên đang xem nằm trong trang mới
+    const firstIndex = Math.max((pagination.page || 1) - 1, 0) * pageSize;
+    const newPage = Math.floor(firstIndex / size) + 1;
+    setPageSize(size);
+    try { localStorage.setItem(PAGE_SIZE_KEY, String(size)); } catch { /* bỏ qua */ }
+    loadPage(newPage, { size });
+  };
 
-      const response = await adminApiService.searchStudentResults(filters);
-
-      setResults(response.results);
-      if (response.results.length === 0) {
-        setPagination({
-          total: 0,
-          page: 0,
-          totalPages: 0,
-        });
-        return;
-      }
-      // console.log(response);
-      setPagination({
-        total: response.total,
-        page: response.page,
-        totalPages: response.totalPages,
-      });
-
-      // lưu lại page vào state filters (để đồng bộ UI nếu cần)
-      setSearchFilters(filters);
-    } catch (error) {
-      toast({
-        title: 'Lỗi',
-        description: 'Không thể tìm kiếm kết quả',
-        variant: 'destructive',
-      });
-    } finally {
-      setSearchLoading(false);
-      setIsSearching(false);
-    }
+  const goToPage = (page: number) => {
+    if (page < 1 || page > pagination.totalPages || page === pagination.page) return;
+    loadPage(page);
   };
 
   // --- Tải PDF theo lớp ---
@@ -695,11 +713,11 @@ const StudentResults = () => {
               {/* Tìm kiếm */}
               <Button
                 className="flex-1 min-w-[120px]"
-                onClick={() => handleSearch(1)}
-                disabled={searchLoading}
+                onClick={handleSearch}
+                disabled={pageLoading}
               >
                 <Search className="mr-2 h-4 w-4" />
-                {searchLoading ? 'Đang tìm...' : 'Tìm kiếm'}
+                {pageLoading && appliedFilters ? 'Đang tìm...' : 'Tìm kiếm'}
               </Button>
 
               {/* Xóa bộ lọc */}
@@ -715,10 +733,11 @@ const StudentResults = () => {
                     dateTo: '',
                     schoolYear: '',
                     page: 1,
-                    limit: 10
+                    limit: pageSize
                   });
-                  setIsSearching(false);
-                  fetchResults();
+                  setAppliedFilters(null);
+                  setPendingNew(0);
+                  loadPage(1, { filters: null, fresh: true });
                 }}
               >
                 Refresh
@@ -765,7 +784,13 @@ const StudentResults = () => {
                 Có {pendingNew} kết quả mới · Bấm để tải lại danh sách
               </button>
             )}
-            <Table className="table-auto text-center">
+            <div className="relative">
+            {pageLoading && results.length > 0 && (
+              <div className="absolute inset-0 z-10 flex items-start justify-center bg-background/50 pt-16">
+                <LoaderIcon className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            <Table className={`table-auto text-center transition-opacity ${pageLoading ? 'opacity-60' : ''}`}>
               <TableHeader>
                 <TableRow>
                   <TableHead className='text-center'>Học sinh</TableHead>
@@ -851,18 +876,18 @@ const StudentResults = () => {
                 })}
               </TableBody>
             </Table>
+            </div>
 
-            {isSearching ? (
+            {results.length === 0 && (
               <div className="text-center py-8">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">Đang tìm kết quả...</p>
+                {pageLoading ? (
+                  <LoaderIcon className="h-8 w-8 animate-spin text-muted-foreground mx-auto mb-4" />
+                ) : (
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                )}
+                <p className="text-muted-foreground">{pageLoading ? 'Đang tải kết quả...' : 'Không có kết quả nào'}</p>
               </div>
-            ) : results.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">Không có kết quả nào</p>
-              </div>
-            ) : null}
+            )}
 
           </CardContent>
 
@@ -1032,55 +1057,65 @@ const StudentResults = () => {
         </Dialog>
 
 
-        <div className="flex items-center justify-center gap-2 mt-4">
-          <Button
-            variant="ghost"
-            disabled={pagination.page === 1 || pagination.page === 0}
-            onClick={() => {
-              isSearching ? handleSearch(1) : fetchResults(1);
-            }}
-            className='no-border'
-          >
-            « Đầu
-          </Button>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <label htmlFor="pageSize">Hiển thị</label>
+            <select
+              id="pageSize"
+              className="rounded border bg-background px-2 py-1 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <span>
+              dòng / trang
+              {pagination.total > 0 && (
+                <> · {(pagination.page - 1) * pageSize + 1}–{Math.min(pagination.page * pageSize, pagination.total)} / {pagination.total}</>
+              )}
+            </span>
+          </div>
 
-          <Button
-            variant="ghost"
-            disabled={pagination.page === 1 || pagination.page === 0}
-            onClick={() => {
-              if (pagination.page > 1) {
-                isSearching ? handleSearch(pagination.page - 1) : fetchResults(pagination.page - 1);
-              }
-            }}
-          >
-            ‹ Trước
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              disabled={pagination.page <= 1}
+              onClick={() => goToPage(1)}
+              className='no-border'
+            >
+              « Đầu
+            </Button>
 
-          <span className="px-3 font-medium">
-            Trang {pagination.page}/{pagination.totalPages}
-          </span>
+            <Button
+              variant="ghost"
+              disabled={pagination.page <= 1}
+              onClick={() => goToPage(pagination.page - 1)}
+            >
+              ‹ Trước
+            </Button>
 
-          <Button
-            variant="ghost"
-            disabled={pagination.page === pagination.totalPages}
-            onClick={() => {
-              if (pagination.page < pagination.totalPages) {
-                isSearching ? handleSearch(pagination.page + 1) : fetchResults(pagination.page + 1);
-              }
-            }}
-          >
-            Sau ›
-          </Button>
+            <span className="px-3 font-medium">
+              Trang {pagination.page}/{pagination.totalPages}
+            </span>
 
-          <Button
-            variant="ghost"
-            disabled={pagination.page === pagination.totalPages}
-            onClick={() => {
-              isSearching ? handleSearch(pagination.totalPages) : fetchResults(pagination.totalPages);
-            }}
-          >
-            Cuối »
-          </Button>
+            <Button
+              variant="ghost"
+              disabled={pagination.page >= pagination.totalPages}
+              onClick={() => goToPage(pagination.page + 1)}
+            >
+              Sau ›
+            </Button>
+
+            <Button
+              variant="ghost"
+              disabled={pagination.page >= pagination.totalPages}
+              onClick={() => goToPage(pagination.totalPages)}
+            >
+              Cuối »
+            </Button>
+          </div>
         </div>
 
 

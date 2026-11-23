@@ -293,9 +293,14 @@ export const adminApiService = {
   },
 
   // Student Results
-  async getStudentResults(page: number): Promise<StudentResult[]> {
+  async getStudentResults(page: number, limit: number = 5): Promise<{
+    results: StudentResult[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }> {
     try {
-      const res = await fetch(ADMIN_API_ENDPOINTS.GET_STUDENT_RESULTS + `?page=${page}`, {
+      const res = await fetch(ADMIN_API_ENDPOINTS.GET_STUDENT_RESULTS + `?page=${page}&limit=${limit}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -306,8 +311,7 @@ export const adminApiService = {
         throw new Error(`Request failed with status ${res.status}`);
       }
 
-      const data: StudentResult[] = await res.json();
-      return data;
+      return await res.json();
     } catch (error) {
       console.error('Error fetching student results:', error);
       throw new Error('Không thể tải danh sách kết quả');
