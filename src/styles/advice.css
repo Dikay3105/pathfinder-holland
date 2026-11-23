@@ -290,3 +290,16 @@
 @media (prefers-reduced-motion: reduce) {
   .adv-caret { animation: none; }
 }
+
+/* Nguồn gợi ý ngành (mục "Ngành học phù hợp nhất") */
+.adv-badge {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.adv-badge-ai { background: hsl(262 80% 95%); color: hsl(262 55% 45%); }
+.adv-badge-sys { background: hsl(214 32% 93%); color: hsl(215 19% 35%); }

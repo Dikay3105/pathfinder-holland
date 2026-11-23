@@ -28,7 +28,9 @@ import {
   Download,
   BarChart3,
   Calendar,
-  Users
+  Users,
+  Sparkles as SparklesIcon,
+  Loader2 as LoaderIcon,
 } from 'lucide-react';
 import { adminApiService, StudentResult, SearchFilters } from '@/services/adminApi';
 import { useToast } from '@/hooks/use-toast';
@@ -882,6 +884,40 @@ const StudentResults = () => {
                 </p>
 
                 <p><strong>Ngày test:</strong> {formatDateTime(selectedStudent.createdAt)}</p>
+
+                {/* Nguồn lời khuyên + tạo lại bằng AI */}
+                <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
+                  <strong>Lời khuyên:</strong>
+                  {selectedStudent.adviceStatus === 'pending' ? (
+                    <span className="inline-flex items-center gap-1 text-primary"><LoaderIcon className="h-3.5 w-3.5 animate-spin" /> AI đang viết…</span>
+                  ) : selectedStudent.adviceStatus === 'fallback' ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Lời khuyên mẫu (AI chưa dùng được)</span>
+                  ) : selectedStudent.advice ? (
+                    <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">AI viết</span>
+                  ) : (
+                    <span className="text-muted-foreground">Chưa có</span>
+                  )}
+                  {selectedStudent.adviceStatus !== 'pending' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-auto h-8"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/admin/students/${selectedStudent._id}/regenerate-advice`, { method: 'POST' });
+                          const body = await res.json().catch(() => ({}));
+                          if (!res.ok) throw new Error(body.message || 'Không tạo lại được');
+                          setSelectedStudent((prev: any) => (prev ? { ...prev, adviceStatus: 'pending' } : prev));
+                          toast({ title: 'Đang tạo lại lời khuyên', description: 'Kết quả sẽ tự cập nhật khi AI viết xong.' });
+                        } catch (err) {
+                          toast({ title: 'Chưa tạo lại được', description: (err as Error).message, variant: 'destructive' });
+                        }
+                      }}
+                    >
+                      <SparklesIcon className="mr-1 h-3.5 w-3.5" /> Tạo lại lời khuyên AI
+                    </Button>
+                  )}
+                </div>
                 {selectedStudent.selectedBlocks && selectedStudent.selectedBlocks.length > 0 && (
                   <div>
                     <strong>Khối đã chọn:</strong>
